@@ -1,0 +1,74 @@
+{
+  "name": "git-status-monitor",
+  "version": "1.0.0",
+  "description": "Git仓库状态监控应用",
+  "main": "main.js",
+  "bin": {
+    "git-monitor": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "cli": "node cli.js",
+    "scan": "node cli.js scan",
+    "status": "node cli.js status",
+    "electron": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.git-status-monitor.app",
+    "productName": "Git Status Monitor",
+    "directories": {
+      "output": "dist",
+      "app": "."
+    },
+    "asar": true,
+    "asarUnpack": [
+      "public/**/*"
+    ],
+    "files": [
+      "main.js",
+      "server.js",
+      "cli.js",
+      "public/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "icon": "public/icon.icns"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "public/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "public/icon.png"
+    }
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "electron": "^42.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "keywords": [
+    "git",
+    "monitor",
+    "status",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "MIT"
+}

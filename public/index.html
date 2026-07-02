@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git状态监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(15, 52, 96, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+            animation: bgFloat 20s ease-in-out infinite;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-2%, 2%) scale(1.02); }
+            66% { transform: translate(2%, -2%) scale(0.98); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        header h1 {
+            color: white;
+            font-size: 2.8rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: rgba(255,255,255,0.7);
+            font-size: 1.05rem;
+            font-weight: 400;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .depth-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .depth-control input {
+            width: 60px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        .controls label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .controls input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:active::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.875rem;
+        }
+
+        .gauge-mini {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-mini-ring {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: conic-gradient(
+                #28a745 var(--gauge-percent),
+                #dc3545 calc(var(--gauge-percent) + 1%),
+                #ffc107 calc(var(--gauge-percent) + var(--warning-percent)),
+                #17a2b8 100%
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .gauge-mini-ring::before {
+            content: '';
+            position: absolute;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        .gauge-mini-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
+        .gauge-mini-percent {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .gauge-mini-label {
+            font-size: 0.6rem;
+            color: #666;
+            margin-top: 1px;
+        }
+
+        .alert-section {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            margin-bottom: 15px;
+        }
+
+        .alert-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .alert-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 8px;
+        }
+
+        .alert-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            border-left: 3px solid;
+            background: #f8f9fa;
+        }
+
+        .alert-item.uncommitted { border-color: #dc3545; background: #fdf2f2; }
+        .alert-item.unpushed { border-color: #ffc107; background: #fffdf2; }
+        .alert-item.unpulled { border-color: #17a2b8; background: #f2fdfd; }
+
+        .alert-item .repo-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+            margin-bottom: 3px;
+        }
+
+        .alert-item .repo-path {
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .alert-item .alert-detail {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 0;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .modal-body {
+            padding: 25px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .commit-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .commit-item {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+
+        .commit-item:hover {
+            background: #f8f9fa;
+        }
+
+        .commit-item:last-child {
+            border-bottom: none;
+        }
+
+        .commit-hash {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 3px;
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .commit-subject {
+            font-weight: 600;
+            color: #333;
+            margin: 5px 0;
+        }
+
+        .commit-meta {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .diff-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .diff-item {
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .diff-item:last-child {
+            border-bottom: none;
+        }
+
+        .diff-status {
+            display: inline-block;
+            width: 60px;
+            font-weight: bold;
+        }
+
+        .diff-status.modified { color: #ffc107; }
+        .diff-status.added { color: #28a745; }
+        .diff-status.deleted { color: #dc3545; }
+        .diff-status.untracked { color: #17a2b8; }
+
+        .commit-form {
+            margin-bottom: 20px;
+        }
+
+        .commit-form textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .commit-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .remote-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .remote-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .remote-item:last-child {
+            border-bottom: none;
+        }
+
+        .remote-url {
+            font-family: monospace;
+            color: #667eea;
+            word-break: break-all;
+        }
+
+        .scan-progress {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 0 10px;
+        }
+
+        .scan-progress.active {
+            display: flex;
+        }
+
+        .scan-spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #e0e0e0;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .scan-progress .text-container {
+            flex: 1;
+        }
+
+        .scan-progress .text {
+            font-size: 0.9rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .scan-progress .progress-bar {
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .scan-progress .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            border-radius: 3px;
+        }
+
+        .scan-progress .percent {
+            font-size: 0.85rem;
+            color: #667eea;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .auto-refresh-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 20px 16px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: currentColor;
+            opacity: 1;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg, currentColor 0%, transparent 8%);
+            opacity: 0.08;
+            pointer-events: none;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            line-height: 1;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #4b5563;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-total { color: #667eea; }
+        .stat-synced { color: #28a745; }
+        .stat-uncommitted { color: #dc3545; }
+        .stat-unpushed { color: #ffc107; }
+        .stat-unpulled { color: #17a2b8; }
+
+        .repo-list {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .repo-list-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 2fr 1fr;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .repo-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 2fr 1fr;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .repo-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .repo-item:last-child {
+            border-bottom: none;
+        }
+
+        .repo-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .repo-name small {
+            font-weight: normal;
+            color: #999;
+            font-size: 0.85rem;
+            display: block;
+            margin-top: 3px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .status-synced {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-uncommitted {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-unpushed {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-unpulled {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .branch-name {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: flex-end;
+        }
+
+        .excluded-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .excluded-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .excluded-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .excluded-tag {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+
+        .excluded-tag .remove-btn {
+            cursor: pointer;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+
+        .excluded-tag .remove-btn:hover {
+            color: #c82333;
+        }
+
+        .btn-exclude {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-exclude:hover {
+            background: #5a6268;
+        }
+
+        .btn-active {
+            background: #667eea !important;
+            color: white !important;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+        }
+
+        .card-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .card-view .repo-card {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .card-view .repo-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .card-view .card-top-bar-red { border-top: 4px solid #ef4444; }
+        .card-view .card-top-bar-yellow { border-top: 4px solid #f59e0b; }
+        .card-view .card-top-bar-blue { border-top: 4px solid #3b82f6; }
+        .card-view .card-top-bar-green { border-top: 4px solid #22c55e; }
+        .card-view .card-top-bar-gray { border-top: 4px solid #6b7280; }
+
+        .card-view .card-info {
+            padding: 18px;
+        }
+
+        .card-view .card-info h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 4px 0;
+        }
+
+        .card-view .card-info .card-path {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .card-view .card-info .card-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .card-view .card-info .card-branch {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            background: #eef2ff;
+            border-radius: 6px;
+            color: #4f46e5;
+            font-weight: 600;
+        }
+
+        .card-view .card-info .card-status-tag {
+            font-size: 0.72rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .card-view .card-info .card-status-tag.tag-red { 
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        .card-view .card-info .card-status-tag.tag-yellow { 
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+        .card-view .card-info .card-status-tag.tag-blue { 
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+        .card-view .card-info .card-status-tag.tag-green { 
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+            color: #166534;
+        }
+        .card-view .card-info .card-status-tag.tag-gray { 
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            color: #374151;
+        }
+
+        .card-view .card-info .card-metrics {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .card-view .card-info .card-metric {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .card-view .card-info .card-readme {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            border-left: 3px solid #6366f1;
+        }
+
+        .card-view .card-info .card-readme-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .card-view .card-info .card-readme-desc {
+            font-size: 0.75rem;
+            color: #64748b;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-view .card-info .card-commit {
+            font-size: 0.72rem;
+            color: #9ca3af;
+            line-height: 1.4;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+        }
+
+        .card-view .card-actions {
+            padding: 12px 18px;
+            background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .card-view .card-actions button {
+            flex: 1;
+            min-width: 55px;
+            font-size: 0.78rem;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .card-view .card-actions button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .card-view .card-actions button:active {
+            transform: translateY(0);
+        }
+
+        .card-view .card-actions .btn-card-success { 
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+        .card-view .card-actions .btn-card-warning { 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        .card-view .card-actions .btn-card-primary { 
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+        }
+        .card-view .card-actions .btn-card-gray { 
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+            color: white;
+        }
+
+        .list-view {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .card-view .repo-card {
+            animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+        }
+
+        .card-view .repo-card:nth-child(1) { animation-delay: 0.05s; }
+        .card-view .repo-card:nth-child(2) { animation-delay: 0.1s; }
+        .card-view .repo-card:nth-child(3) { animation-delay: 0.15s; }
+        .card-view .repo-card:nth-child(4) { animation-delay: 0.2s; }
+        .card-view .repo-card:nth-child(5) { animation-delay: 0.25s; }
+        .card-view .repo-card:nth-child(6) { animation-delay: 0.3s; }
+        .card-view .repo-card:nth-child(7) { animation-delay: 0.35s; }
+        .card-view .repo-card:nth-child(8) { animation-delay: 0.4s; }
+        .card-view .repo-card:nth-child(n+9) { animation-delay: 0.45s; }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            font-size: 1rem;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab {
+            padding: 10px 22px;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: white;
+            border-radius: 24px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.9rem;
+        }
+
+        .filter-tab:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.5);
+            transform: translateY(-2px);
+        }
+
+        .filter-tab.active {
+            background: white;
+            color: #4f46e5;
+            border-color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .gauge-ring {
+                width: 150px;
+                height: 150px;
+            }
+
+            .gauge-ring::before {
+                width: 115px;
+                height: 115px;
+            }
+
+            .gauge-content .percent {
+                font-size: 2rem;
+            }
+
+            .repo-list-header,
+            .repo-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .action-buttons {
+                justify-content: flex-start;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .controls input {
+                width: 100%;
+            }
+
+            .alert-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div>
+            <p style="margin-top: 15px; font-size: 1.2rem;">正在扫描Git仓库...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>📊 Git状态监控</h1>
+            <p>实时监控多个Git仓库的同步状态</p>
+        </header>
+
+        <div class="controls">
+            <label for="scanPath">扫描路径:</label>
+            <input type="text" id="scanPath" value="" placeholder="输入要扫描的目录路径">
+            <div class="depth-control">
+                <label for="scanDepth">扫描深度:</label>
+                <input type="number" id="scanDepth" value="2" min="1" max="10" placeholder="1">
+            </div>
+            <button class="btn btn-primary" onclick="scanRepos()">
+                <span>🔍 扫描</span>
+            </button>
+            <button class="btn btn-primary" onclick="refreshAll()">
+                <span>🔄 刷新状态</span>
+            </button>
+            <div class="auto-refresh-toggle">
+                <span>自动刷新:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
+            <div style="position: relative; flex: 1; min-width: 200px; max-width: 300px;">
+                <input type="text" id="searchInput" placeholder="🔍 搜索仓库名称..." 
+                    oninput="renderRepos()" 
+                    style="width: 100%; padding: 8px 12px 8px 36px; border: 2px solid #e0e0e0; border-radius: 20px; font-size: 14px; outline: none; transition: border-color 0.3s;">
+                <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px;">🔍</span>
+            </div>
+            <div style="display: flex; gap: 5px;">
+                <button class="btn btn-sm btn-active" id="viewList" onclick="setView('list')">📋 列表</button>
+                <button class="btn btn-sm" id="viewCard" onclick="setView('card')">🃏 卡片</button>
+            </div>
+        </div>
+        <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+            <div class="filter-tabs">
+                <div class="filter-tab active" onclick="setFilter('all')">全部</div>
+                <div class="filter-tab" onclick="setFilter('uncommitted')">未提交</div>
+                <div class="filter-tab" onclick="setFilter('unpushed')">未推送</div>
+                <div class="filter-tab" onclick="setFilter('unpulled')">需拉取</div>
+                <div class="filter-tab" onclick="setFilter('synced')">已同步</div>
+                <div class="scan-progress" id="scanProgress">
+                    <div class="scan-spinner"></div>
+                    <span class="scan-text" id="scanProgressText">扫描中...</span>
+                    <span class="scan-percent" id="scanProgressPercent">0%</span>
+                </div>
+            </div>
+            <div class="gauge-mini" id="gaugeMini">
+                <div class="gauge-mini-ring" id="gaugeRing">
+                    <div class="gauge-mini-content">
+                        <div class="gauge-mini-percent" id="gaugePercent">0%</div>
+                        <div class="gauge-mini-label">已同步</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert-section" id="alertSection" style="display: none;">
+            <h3>⚠️ 需要关注的仓库</h3>
+            <div class="alert-list" id="alertList"></div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card stat-total">
+                <div class="number" id="statTotal">0</div>
+                <div class="label">总仓库数</div>
+            </div>
+            <div class="stat-card stat-synced">
+                <div class="number" id="statSynced">0</div>
+                <div class="label">已同步</div>
+            </div>
+            <div class="stat-card stat-uncommitted">
+                <div class="number" id="statUncommitted">0</div>
+                <div class="label">未提交</div>
+            </div>
+            <div class="stat-card stat-unpushed">
+                <div class="number" id="statUnpushed">0</div>
+                <div class="label">未推送</div>
+            </div>
+            <div class="stat-card stat-unpulled">
+                <div class="number" id="statUnpulled">0</div>
+                <div class="label">需拉取</div>
+            </div>
+        </div>
+
+        <div class="excluded-section" id="excludedSection" style="display: none;">
+            <h3>🚫 已排除的仓库</h3>
+            <div class="excluded-tags" id="excludedTags"></div>
+        </div>
+
+        <div class="repo-list" id="repoList">
+            <div class="repo-list-header">
+                <div>仓库名称</div>
+                <div>分支</div>
+                <div>状态</div>
+                <div>变更数量</div>
+                <div>最近提交</div>
+                <div>操作</div>
+            </div>
+            <div class="empty-state">
+                <h3>📁 暂无仓库</h3>
+                <p>点击"扫描"按钮开始检测Git仓库</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="commitModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📝 提交管理 - <span id="commitRepoName"></span></h2>
+                <button class="modal-close" onclick="closeModal('commitModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="commit-form">
+                    <h3>创建提交</h3>
+                    <textarea id="commitMessage" placeholder="输入提交信息..."></textarea>
+                    <button class="btn btn-primary" onclick="createCommit()" style="margin-top: 10px;">
+                        <span>✅ 提交</span>
+                    </button>
+                </div>
+                <div>
+                    <h3>提交历史</h3>
+                    <ul class="commit-list" id="commitList">
+                        <li class="commit-item">加载中...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="diffModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📋 变更详情 - <span id="diffRepoName"></span></h2>
+                <button class="modal-close" onclick="closeModal('diffModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div>
+                    <h3>变更文件</h3>
+                    <ul class="diff-list" id="diffList">
+                        <li class="diff-item">加载中...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="remoteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🌐 远程仓库管理 - <span id="remoteRepoName"></span></h2>
+                <button class="modal-close" onclick="closeModal('remoteModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div>
+                    <h3>📡 当前远程仓库</h3>
+                    <div class="remote-info" id="remoteInfo">
+                        <p>加载中...</p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 25px;">
+                    <h3>➕ 添加/修改远程地址</h3>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">远程名称</label>
+                            <select id="remoteName" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;">
+                                <option value="origin">origin (主仓库)</option>
+                                <option value="backup">backup (备用仓库)</option>
+                                <option value="github">github</option>
+                                <option value="gitlab">gitlab</option>
+                                <option value="gitee">gitee</option>
+                                <option value="custom">自定义...</option>
+                            </select>
+                            <input type="text" id="remoteNameCustom" placeholder="输入自定义远程名称" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px; margin-top: 8px; display: none;">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">仓库地址 (URL)</label>
+                            <input type="text" id="remoteUrl" placeholder="https://github.com/user/repo.git 或 git@github.com:user/repo.git" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;">
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn btn-primary" onclick="updateRemote()" style="flex: 1; min-width: 120px;">
+                                <span>💾 保存</span>
+                            </button>
+                            <button class="btn btn-success" onclick="fetchRemote()" style="flex: 1; min-width: 120px;">
+                                <span>🔄 Fetch</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 25px; background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3;">
+                    <h4 style="margin: 0 0 10px 0; color: #1976D2;">💡 常用远程仓库地址格式</h4>
+                    <div style="font-size: 0.9rem; color: #333;">
+                        <p style="margin: 5px 0;"><strong>GitHub:</strong> git@github.com:username/repo.git</p>
+                        <p style="margin: 5px 0;"><strong>GitLab:</strong> git@gitlab.com:username/repo.git</p>
+                        <p style="margin: 5px 0;"><strong>Gitee:</strong> git@gitee.com:username/repo.git</p>
+                        <p style="margin: 5px 0;"><strong>HTTPS:</strong> https://github.com/username/repo.git</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        let repos = [];
+        let currentFilter = 'all';
+        let excludedRepos = JSON.parse(localStorage.getItem('excludedRepos') || '[]');
+
+        async function refreshAll(silent = false) {
+            if (repos.length === 0) {
+                scanRepos();
+                return;
+            }
+
+            if (!silent) {
+                showScanProgress(true, '正在刷新...', 50);
+            }
+            try {
+                const paths = repos.map(r => r.path);
+                const response = await fetch(API_BASE + '/api/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paths })
+                });
+                const data = await response.json();
+                repos = data.statuses || [];
+                renderRepos();
+                updateStats();
+                if (!silent) {
+                    showScanProgress(true, '刷新完成!', 100);
+                    setTimeout(() => showScanProgress(false), 800);
+                }
+            } catch (error) {
+                console.error('刷新失败:', error);
+                if (!silent) alert('刷新失败');
+                if (!silent) showScanProgress(false);
+            }
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            renderRepos();
+        }
+
+        let currentView = 'list';
+
+        function setView(view) {
+            currentView = view;
+            document.getElementById('viewList').classList.toggle('btn-active', view === 'list');
+            document.getElementById('viewCard').classList.toggle('btn-active', view === 'card');
+            
+            const list = document.getElementById('repoList');
+            const header = list.querySelector('.repo-list-header');
+            
+            if (view === 'card') {
+                list.classList.remove('list-view');
+                list.classList.add('card-view');
+                if (header) header.style.display = 'none';
+            } else {
+                list.classList.remove('card-view');
+                list.classList.add('list-view');
+                if (header) header.style.display = 'grid';
+            }
+            
+            renderRepos();
+        }
+
+        function renderRepos() {
+            const list = document.getElementById('repoList');
+            const header = list.querySelector('.repo-list-header');
+            
+            while (list.children.length > 1) {
+                list.removeChild(list.lastChild);
+            }
+
+            let filtered = repos;
+            if (currentFilter === 'uncommitted') {
+                filtered = repos.filter(r => r.hasUncommitted);
+            } else if (currentFilter === 'unpushed') {
+                filtered = repos.filter(r => r.hasUnpushed);
+            } else if (currentFilter === 'unpulled') {
+                filtered = repos.filter(r => r.hasUnpulled);
+            } else if (currentFilter === 'synced') {
+                filtered = repos.filter(r => !r.hasUncommitted && !r.hasUnpushed && !r.hasUnpulled && !r.error);
+            }
+            
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            if (searchText) {
+                filtered = filtered.filter(r => r.name.toLowerCase().includes(searchText) || 
+                                             r.path.toLowerCase().includes(searchText));
+            }
+
+            if (filtered.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.innerHTML = '<h3>📭 没有匹配的仓库</h3><p>尝试调整筛选条件或扫描其他路径</p>';
+                list.appendChild(empty);
+                return;
+            }
+
+            filtered.forEach(repo => {
+                const item = document.createElement('div');
+                const status = getStatusInfo(repo);
+                
+                if (currentView === 'card') {
+                    const colorMap = {
+                        uncommitted: 'red',
+                        unpushed: 'yellow',
+                        unpulled: 'blue',
+                        synced: 'green',
+                        error: 'gray'
+                    };
+                    const color = colorMap[status.type] || 'gray';
+                    
+                    const metricsHtml = `
+                        <div class="card-metrics">
+                            ${repo.modifiedCount > 0 ? `<div class="card-metric" title="已修改"><span>✏️</span><span>${repo.modifiedCount}</span></div>` : ''}
+                            ${repo.stagedCount > 0 ? `<div class="card-metric" title="已暂存"><span>📋</span><span>${repo.stagedCount}</span></div>` : ''}
+                            ${repo.untrackedCount > 0 ? `<div class="card-metric" title="未跟踪"><span>🆕</span><span>${repo.untrackedCount}</span></div>` : ''}
+                            ${repo.aheadCount > 0 ? `<div class="card-metric" title="领先"><span>↑</span><span>${repo.aheadCount}</span></div>` : ''}
+                            ${repo.behindCount > 0 ? `<div class="card-metric" title="落后"><span>↓</span><span>${repo.behindCount}</span></div>` : ''}
+                        </div>
+                    `;
+                    
+                    const readmeHtml = repo.readme && repo.readme.title ? `
+                        <div class="card-readme">
+                            <div class="card-readme-title">📝 ${repo.readme.title}</div>
+                            ${repo.readme.description ? `<div class="card-readme-desc">${repo.readme.description}</div>` : ''}
+                        </div>
+                    ` : '';
+
+                    item.className = `repo-card card-top-bar-${color}`;
+                    item.innerHTML = `
+                        <div class="card-info">
+                            <h3>${repo.name}</h3>
+                            <div class="card-path">${repo.path}</div>
+                            <div class="card-row">
+                                <span class="card-branch">${repo.branch || '无分支'}</span>
+                                <span class="card-status-tag tag-${color}">${status.text}</span>
+                            </div>
+                            ${metricsHtml}
+                            ${readmeHtml}
+                            <div class="card-commit">
+                                ${repo.lastCommit ? repo.lastCommit.substring(0, 40) + '...' : '无提交'}
+                                ${repo.lastCommitTime ? `<br>${repo.lastCommitTime}` : ''}
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn-card-success" onclick="doAction('${repo.path}', 'pull')">拉取</button>
+                            <button class="btn-card-warning" onclick="doAction('${repo.path}', 'push')">推送</button>
+                            <button class="btn-card-primary" onclick="openDiffModal(repos.find(r => r.path === '${repo.path}'))">详情</button>
+                            <button class="btn-card-primary" onclick="openCommitModal(repos.find(r => r.path === '${repo.path}'))">提交</button>
+                            <button class="btn-card-primary" onclick="openRemoteModal(repos.find(r => r.path === '${repo.path}'))">远程</button>
+                            <button class="btn-card-gray" onclick="excludeRepo('${repo.path}', '${repo.name}')">排除</button>
+                        </div>
+                    `;
+                } else {
+                    item.className = 'repo-item';
+                    
+                    const readmeHtml = repo.readme && repo.readme.title ? `
+                        <div class="readme-section">
+                            <div class="readme-title">📝 ${repo.readme.title}</div>
+                            ${repo.readme.description ? `<div class="readme-desc">${repo.readme.description}</div>` : ''}
+                        </div>
+                    ` : '';
+
+                    item.innerHTML = `
+                        <div class="repo-name">
+                            ${repo.name}
+                            <small>${repo.path}</small>
+                        </div>
+                        <div>
+                            <span class="branch-name">${repo.branch || '无分支'}</span>
+                        </div>
+                        <div>
+                            <span class="status-badge status-${status.type}">${status.text}</span>
+                        </div>
+                        <div>
+                            ${repo.modifiedCount > 0 ? `<span title="已修改">✏️ ${repo.modifiedCount}</span> ` : ''}
+                            ${repo.stagedCount > 0 ? `<span title="已暂存">📋 ${repo.stagedCount}</span> ` : ''}
+                            ${repo.untrackedCount > 0 ? `<span title="未跟踪">🆕 ${repo.untrackedCount}</span> ` : ''}
+                            ${repo.aheadCount > 0 ? `<span title="领先">↑${repo.aheadCount}</span> ` : ''}
+                            ${repo.behindCount > 0 ? `<span title="落后">↓${repo.behindCount}</span>` : ''}
+                        </div>
+                        ${readmeHtml}
+                        <div style="font-size: 0.9rem; color: #666;">
+                            ${repo.lastCommit ? repo.lastCommit.substring(0, 40) + '...' : '无提交'}
+                            <br>
+                            <small>${repo.lastCommitTime || ''}</small>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-success" onclick="doAction('${repo.path}', 'pull')">拉取</button>
+                            <button class="btn btn-sm btn-warning" onclick="doAction('${repo.path}', 'push')">推送</button>
+                            <button class="btn btn-sm btn-primary" onclick="openDiffModal(repos.find(r => r.path === '${repo.path}'))">详情</button>
+                            <button class="btn btn-sm btn-primary" onclick="openCommitModal(repos.find(r => r.path === '${repo.path}'))">提交</button>
+                            <button class="btn btn-sm btn-primary" onclick="openRemoteModal(repos.find(r => r.path === '${repo.path}'))">远程</button>
+                            <button class="btn btn-sm btn-exclude" onclick="excludeRepo('${repo.path}', '${repo.name}')">排除</button>
+                        </div>
+                    `;
+                }
+                list.appendChild(item);
+            });
+        }
+
+        function getStatusInfo(repo) {
+            if (repo.error) {
+                return { type: 'error', text: '错误' };
+            }
+            if (repo.hasUncommitted) {
+                return { type: 'uncommitted', text: '未提交' };
+            }
+            if (repo.hasUnpulled) {
+                return { type: 'unpulled', text: '需拉取' };
+            }
+            if (repo.hasUnpushed) {
+                return { type: 'unpushed', text: '未推送' };
+            }
+            return { type: 'synced', text: '已同步' };
+        }
+
+        function updateStats() {
+            const total = repos.length;
+            const synced = repos.filter(r => !r.hasUncommitted && !r.hasUnpushed && !r.hasUnpulled && !r.error).length;
+            const uncommitted = repos.filter(r => r.hasUncommitted).length;
+            const unpushed = repos.filter(r => r.hasUnpushed).length;
+            const unpulled = repos.filter(r => r.hasUnpulled).length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statSynced').textContent = synced;
+            document.getElementById('statUncommitted').textContent = uncommitted;
+            document.getElementById('statUnpushed').textContent = unpushed;
+            document.getElementById('statUnpulled').textContent = unpulled;
+
+            updateDashboard(total, synced, uncommitted, unpushed, unpulled);
+            renderAlerts(uncommitted, unpushed, unpulled);
+        }
+
+        function updateDashboard(total, synced, uncommitted, unpushed, unpulled) {
+            if (total === 0) {
+                document.getElementById('gaugePercent').textContent = '0%';
+                document.getElementById('gaugeRing').style.setProperty('--gauge-percent', '0%');
+                document.getElementById('gaugeRing').style.setProperty('--warning-percent', '0%');
+                return;
+            }
+
+            const syncedPercent = Math.round((synced / total) * 100);
+            const uncommittedPercent = Math.round((uncommitted / total) * 100);
+            const unpushedPercent = Math.round((unpushed / total) * 100);
+
+            document.getElementById('gaugePercent').textContent = `${syncedPercent}%`;
+            document.getElementById('gaugeRing').style.setProperty('--gauge-percent', `${syncedPercent * 3.6}deg`);
+            document.getElementById('gaugeRing').style.setProperty('--warning-percent', `${(uncommittedPercent + unpushedPercent) * 3.6}deg`);
+        }
+
+        function renderAlerts(uncommitted, unpushed, unpulled) {
+            const section = document.getElementById('alertSection');
+            const list = document.getElementById('alertList');
+            
+            list.innerHTML = '';
+            
+            if (uncommitted === 0 && unpushed === 0 && unpulled === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            
+            const uncommittedRepos = repos.filter(r => r.hasUncommitted);
+            const unpushedRepos = repos.filter(r => r.hasUnpushed);
+            const unpulledRepos = repos.filter(r => r.hasUnpulled);
+            
+            uncommittedRepos.forEach(repo => {
+                const alert = document.createElement('div');
+                alert.className = 'alert-item uncommitted';
+                alert.innerHTML = `
+                    <div class="repo-name">🔴 ${repo.name}</div>
+                    <div class="repo-path">${repo.path}</div>
+                    <div class="alert-detail">
+                        ${repo.modifiedCount > 0 ? `✏️ 修改 ${repo.modifiedCount} 个文件` : ''}
+                        ${repo.stagedCount > 0 ? ` 📋 暂存 ${repo.stagedCount} 个文件` : ''}
+                        ${repo.untrackedCount > 0 ? ` 🆕 未跟踪 ${repo.untrackedCount} 个文件` : ''}
+                    </div>
+                `;
+                list.appendChild(alert);
+            });
+            
+            unpushedRepos.forEach(repo => {
+                const alert = document.createElement('div');
+                alert.className = 'alert-item unpushed';
+                alert.innerHTML = `
+                    <div class="repo-name">🟡 ${repo.name}</div>
+                    <div class="repo-path">${repo.path}</div>
+                    <div class="alert-detail">↑ 领先 ${repo.aheadCount} 个提交未推送</div>
+                `;
+                list.appendChild(alert);
+            });
+            
+            unpulledRepos.forEach(repo => {
+                const alert = document.createElement('div');
+                alert.className = 'alert-item unpulled';
+                alert.innerHTML = `
+                    <div class="repo-name">🔵 ${repo.name}</div>
+                    <div class="repo-path">${repo.path}</div>
+                    <div class="alert-detail">↓ 落后 ${repo.behindCount} 个提交需拉取</div>
+                `;
+                list.appendChild(alert);
+            });
+        }
+
+        function excludeRepo(path, name) {
+            if (!confirm(`确定要排除仓库 "${name}" 吗？排除后将不再显示在监控列表中。`)) {
+                return;
+            }
+            excludedRepos.push(path);
+            localStorage.setItem('excludedRepos', JSON.stringify(excludedRepos));
+            scanRepos();
+        }
+
+        function removeExcluded(path) {
+            excludedRepos = excludedRepos.filter(p => p !== path);
+            localStorage.setItem('excludedRepos', JSON.stringify(excludedRepos));
+            renderExcluded();
+            scanRepos();
+        }
+
+        function renderExcluded() {
+            const section = document.getElementById('excludedSection');
+            const tagsContainer = document.getElementById('excludedTags');
+            
+            tagsContainer.innerHTML = '';
+            
+            if (excludedRepos.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            
+            excludedRepos.forEach(path => {
+                const name = path.split('/').pop();
+                const tag = document.createElement('div');
+                tag.className = 'excluded-tag';
+                tag.innerHTML = `
+                    <span>${name}</span>
+                    <span class="remove-btn" onclick="removeExcluded('${path}')">×</span>
+                `;
+                tagsContainer.appendChild(tag);
+            });
+        }
+
+        async function doAction(path, action) {
+            const confirmText = {
+                pull: '确定要拉取此仓库吗？',
+                push: '确定要推送此仓库吗？',
+                fetch: '确定要执行fetch吗？'
+            };
+            
+            if (!confirm(confirmText[action])) {
+                return;
+            }
+
+            showScanProgress(true, `正在${action}...`, 50);
+            try {
+                const response = await fetch(API_BASE + '/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, action })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`${action}成功!\n${data.result.substring(0, 200)}`);
+                    refreshAll(true);
+                } else {
+                    alert(`${action}失败:\n${data.error}`);
+                }
+            } catch (error) {
+                console.error(`${action}失败:`, error);
+                alert(`${action}失败`);
+            } finally {
+                showScanProgress(false);
+            }
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchDefaultPath();
+            loadFromCache();
+        });
+
+        async function fetchDefaultPath() {
+            try {
+                const response = await fetch(API_BASE + '/api/default-path');
+                const data = await response.json();
+                const pathInput = document.getElementById('scanPath');
+                if (pathInput && !pathInput.value && data.path) {
+                    pathInput.value = data.path;
+                }
+            } catch (e) {
+                console.error('获取默认路径失败:', e);
+            }
+        }
+
+        let autoRefreshInterval = null;
+        let currentModalRepo = null;
+
+        async function loadFromCache() {
+            try {
+                const response = await fetch(API_BASE + '/api/cache');
+                const data = await response.json();
+                
+                if (data.hasCache && data.data) {
+                    repos = data.data.statuses || [];
+                    renderRepos();
+                    updateStats();
+                    renderExcluded();
+                    showScanProgress(true, '正在后台刷新最新状态...', 10);
+                    
+                    setTimeout(() => {
+                        scanRepos();
+                    }, 500);
+                } else {
+                    scanRepos();
+                }
+            } catch (error) {
+                scanRepos();
+            }
+        }
+
+        function toggleAutoRefresh() {
+            const enabled = document.getElementById('autoRefresh').checked;
+            if (enabled) {
+                autoRefreshInterval = setInterval(() => {
+                    if (repos.length > 0) {
+                        refreshAll(true);
+                    }
+                }, 60000);
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+            localStorage.setItem('autoRefreshEnabled', enabled);
+        }
+
+        function showScanProgress(show, text = '正在扫描...', percent = 0) {
+            const progress = document.getElementById('scanProgress');
+            const progressText = document.getElementById('scanProgressText');
+            const progressPercent = document.getElementById('scanProgressPercent');
+            
+            if (show) {
+                progress.classList.add('active');
+                progressText.textContent = text;
+                progressPercent.textContent = percent + '%';
+            } else {
+                progress.classList.remove('active');
+            }
+        }
+
+        async function scanRepos() {
+            const path = document.getElementById('scanPath').value;
+            const depth = document.getElementById('scanDepth').value;
+            if (!path) {
+                alert('请输入扫描路径');
+                return;
+            }
+
+            showScanProgress(true, '正在扫描仓库目录...', 10);
+
+            try {
+                const response = await fetch(API_BASE + '/api/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path, depth, excluded: excludedRepos })
+                });
+                
+                showScanProgress(true, '正在获取仓库状态...', 60);
+                
+                const data = await response.json();
+                repos = data.statuses || [];
+                
+                showScanProgress(true, '正在渲染界面...', 90);
+                
+                renderRepos();
+                updateStats();
+                renderExcluded();
+                
+                showScanProgress(true, '扫描完成!', 100);
+                setTimeout(() => showScanProgress(false), 1000);
+            } catch (error) {
+                console.error('扫描失败:', error);
+                alert('扫描失败，请检查路径是否正确');
+                showScanProgress(false);
+            }
+        }
+
+        async function refreshAll(silent = false) {
+            if (repos.length === 0) {
+                scanRepos();
+                return;
+            }
+
+            if (!silent) {
+                showScanProgress(true, '正在处理...', 50);
+            }
+
+            try {
+                const paths = repos.map(r => r.path);
+                const response = await fetch(API_BASE + '/api/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paths })
+                });
+                const data = await response.json();
+                repos = data.statuses || [];
+                renderRepos();
+                updateStats();
+            } catch (error) {
+                console.error('刷新失败:', error);
+                if (!silent) alert('刷新失败');
+            } finally {
+                if (!silent) showScanProgress(false);
+            }
+        }
+
+        function openCommitModal(repo) {
+            currentModalRepo = repo;
+            document.getElementById('commitRepoName').textContent = repo.name;
+            document.getElementById('commitMessage').value = '';
+            document.getElementById('commitModal').classList.add('active');
+            loadCommitHistory(repo.path);
+        }
+
+        async function loadCommitHistory(repoPath) {
+            const list = document.getElementById('commitList');
+            list.innerHTML = '<li class="commit-item">加载中...</li>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/log?path=${encodeURIComponent(repoPath)}&limit=20`);
+                const data = await response.json();
+
+                if (data.commits.length === 0) {
+                    list.innerHTML = '<li class="commit-item">暂无提交记录</li>';
+                    return;
+                }
+
+                list.innerHTML = data.commits.map(commit => `
+                    <li class="commit-item">
+                        <span class="commit-hash">${commit.hash}</span>
+                        <div class="commit-subject">${commit.subject}</div>
+                        <div class="commit-meta">
+                            ${commit.author} • ${new Date(commit.date).toLocaleString('zh-CN')}
+                        </div>
+                    </li>
+                `).join('');
+            } catch (error) {
+                list.innerHTML = '<li class="commit-item">加载失败</li>';
+            }
+        }
+
+        async function createCommit() {
+            if (!currentModalRepo) return;
+
+            const message = document.getElementById('commitMessage').value.trim();
+            if (!message) {
+                alert('请输入提交信息');
+                return;
+            }
+
+            try {
+                showScanProgress(true, '正在提交...', 50);
+                const response = await fetch(API_BASE + '/api/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: currentModalRepo.path, message })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('提交成功!');
+                    document.getElementById('commitMessage').value = '';
+                    loadCommitHistory(currentModalRepo.path);
+                    refreshAll(true);
+                } else {
+                    alert('提交失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('提交失败');
+            } finally {
+                showScanProgress(false);
+            }
+        }
+
+        function openDiffModal(repo) {
+            document.getElementById('diffRepoName').textContent = repo.name;
+            document.getElementById('diffModal').classList.add('active');
+            loadDiff(repo.path);
+        }
+
+        async function loadDiff(repoPath) {
+            const list = document.getElementById('diffList');
+            list.innerHTML = '<li class="diff-item">加载中...</li>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/diff?path=${encodeURIComponent(repoPath)}`);
+                const data = await response.json();
+
+                if (data.files.length === 0) {
+                    list.innerHTML = '<li class="diff-item">没有变更</li>';
+                    return;
+                }
+
+                list.innerHTML = data.files.map(file => {
+                    let statusClass = 'modified';
+                    let statusText = '修改';
+                    
+                    if (file.status === '??') {
+                        statusClass = 'untracked';
+                        statusText = '新增';
+                    } else if (file.status.startsWith('D')) {
+                        statusClass = 'deleted';
+                        statusText = '删除';
+                    }
+
+                    return `
+                        <li class="diff-item">
+                            <span class="diff-status ${statusClass}">[${statusText}]</span>
+                            ${file.file}
+                        </li>
+                    `;
+                }).join('');
+            } catch (error) {
+                list.innerHTML = '<li class="diff-item">加载失败</li>';
+            }
+        }
+
+        function openRemoteModal(repo) {
+            currentModalRepo = repo;
+            document.getElementById('remoteRepoName').textContent = repo.name;
+            document.getElementById('remoteUrl').value = repo.remoteUrl || '';
+            document.getElementById('remoteModal').classList.add('active');
+            loadRemoteInfo(repo.path);
+            
+            document.getElementById('remoteName').onchange = function() {
+                const customInput = document.getElementById('remoteNameCustom');
+                if (this.value === 'custom') {
+                    customInput.style.display = 'block';
+                } else {
+                    customInput.style.display = 'none';
+                }
+            };
+        }
+
+        async function loadRemoteInfo(repoPath) {
+            const info = document.getElementById('remoteInfo');
+            
+            info.innerHTML = '<p>加载中...</p>';
+
+            try {
+                const response = await fetch(API_BASE + '/api/remote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: repoPath, action: 'get' })
+                });
+                const data = await response.json();
+
+                if (data.success && data.result) {
+                    const lines = data.result.split('\n').filter(l => l.trim() && l.includes('(push)'));
+                    if (lines.length > 0) {
+                        const remotes = {};
+                        lines.forEach(line => {
+                            const parts = line.split(/\s+/);
+                            if (parts.length >= 2 && !remotes[parts[0]]) {
+                                remotes[parts[0]] = parts[1];
+                            }
+                        });
+                        
+                        const remoteItems = Object.entries(remotes).map(([name, url]) => {
+                            const isOrigin = name === 'origin';
+                            const isPrimary = name === 'origin' || name === 'backup';
+                            const badge = isOrigin ? '主仓库' : (isPrimary ? '备用' : '');
+                            const badgeColor = isOrigin ? '#667eea' : (isPrimary ? '#28a745' : '#6c757d');
+                            
+                            return `
+                                <div class="remote-item">
+                                    <div>
+                                        <strong>${name}</strong>
+                                        ${badge ? `<span style="background: ${badgeColor}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 8px;">${badge}</span>` : ''}
+                                    </div>
+                                    <span class="remote-url">${url}</span>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        info.innerHTML = remoteItems;
+                    } else {
+                        info.innerHTML = '<p style="color: #999;">暂无远程仓库</p>';
+                    }
+                } else {
+                    info.innerHTML = '<p style="color: #999;">暂无远程仓库</p>';
+                }
+            } catch (error) {
+                info.innerHTML = '<p>加载失败</p>';
+            }
+        }
+
+        async function updateRemote() {
+            if (!currentModalRepo) return;
+
+            const remoteNameSelect = document.getElementById('remoteName');
+            let remoteName = remoteNameSelect.value;
+            
+            if (remoteName === 'custom') {
+                remoteName = document.getElementById('remoteNameCustom').value.trim();
+                if (!remoteName) {
+                    alert('请输入自定义远程名称');
+                    return;
+                }
+            }
+
+            const remoteUrl = document.getElementById('remoteUrl').value.trim();
+            if (!remoteUrl) {
+                alert('请输入远程仓库地址');
+                return;
+            }
+
+            try {
+                showScanProgress(true, '正在处理...', 50);
+                const response = await fetch(API_BASE + '/api/remote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        path: currentModalRepo.path, 
+                        action: 'set',
+                        remoteName,
+                        remoteUrl 
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`${remoteName} 远程地址更新成功!`);
+                    loadRemoteInfo(currentModalRepo.path);
+                    refreshAll(true);
+                } else {
+                    alert('更新失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('更新失败');
+            } finally {
+                showScanProgress(false);
+            }
+        }
+
+        async function fetchRemote() {
+            if (!currentModalRepo) return;
+
+            const remoteNameSelect = document.getElementById('remoteName');
+            let remoteName = remoteNameSelect.value;
+            
+            if (remoteName === 'custom') {
+                remoteName = document.getElementById('remoteNameCustom').value.trim();
+                if (!remoteName) {
+                    alert('请输入自定义远程名称');
+                    return;
+                }
+            }
+
+            try {
+                showScanProgress(true, '正在处理...', 50);
+                const response = await fetch(API_BASE + '/api/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        path: currentModalRepo.path, 
+                        action: 'fetch',
+                        remoteName 
+                    })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`${remoteName} fetch 成功!`);
+                    refreshAll(true);
+                } else {
+                    alert('Fetch 失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('Fetch 失败');
+            } finally {
+                showScanProgress(false);
+            }
+        }
+
+
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        };
+
+        if (localStorage.getItem('autoRefreshEnabled') === 'true') {
+            document.getElementById('autoRefresh').checked = true;
+            toggleAutoRefresh();
+        }
+    </script>
+</body>
+</html>
