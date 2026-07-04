@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-mode="light" data-effective-mode="light" data-scheme="github" data-reminder="classic">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitFinder</title>
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/sidebar.css">
+  <link rel="stylesheet" href="styles/content.css">
+  <link rel="stylesheet" href="styles/detail.css">
+  <link rel="stylesheet" href="styles/theme.css">
+</head>
+<body>
+  <div id="app">
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <button class="nav-btn" id="btn-back" title="后退">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button class="nav-btn" id="btn-forward" title="前进">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <button class="nav-btn" id="btn-up" title="上级目录">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+        </button>
+        <div class="current-path" id="current-path"></div>
+      </div>
+      <div class="toolbar-center">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="search-input" placeholder="搜索项目...">
+        </div>
+        <button class="btn" id="btn-scan" title="扫描指定目录下的 Git 仓库">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle;">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          扫描
+        </button>
+      </div>
+      <div class="toolbar-right">
+        <div class="view-switcher">
+          <button class="view-btn active" data-view="tree" title="按文件夹显示(访达式浏览)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="6" y1="12" x2="21" y2="12"></line>
+              <line x1="6" y1="18" x2="15" y2="18"></line>
+            </svg>
+          </button>
+          <button class="view-btn" data-view="grid" title="按仓库显示(聚合所有 Git 仓库)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </button>
+          <button class="view-btn" data-view="board" title="白板模式(类 Obsidian Canvas)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            </svg>
+          </button>
+        </div>
+        <button class="nav-btn" id="btn-theme" title="主题配色">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+        <button class="nav-btn" id="btn-settings" title="设置">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-container">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section" data-section-id="favorites">
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">收藏夹</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div id="favorites-list"></div>
+          <button class="sidebar-add-btn" id="add-favorite-btn">+ 添加收藏</button>
+        </div>
+
+        <div class="sidebar-section sidebar-tree-section" data-section-id="locations">
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">位置</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div class="sidebar-tree-container" id="sidebar-tree"></div>
+        </div>
+
+        <div class="sidebar-section" id="groups-sidebar-section" data-section-id="groups">
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">项目分类</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div id="groups-list"></div>
+          <button class="sidebar-add-btn" id="add-group-bottom-btn">+ 添加分类</button>
+        </div>
+
+        <div class="sidebar-section" id="tags-sidebar-section" data-section-id="tags">
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">标签</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div id="tags-filter-list"></div>
+          <button class="sidebar-add-btn" id="add-tag-bottom-btn">+ 添加标签</button>
+        </div>
+      </aside>
+
+      <div class="resize-handle resize-handle-left" id="resize-handle-left"></div>
+
+      <main class="content-area">
+        <div class="filter-bar" id="filter-bar" style="display:none;">
+          <span class="filter-label">筛选方式：</span>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-category-check" checked> 分类</label>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-tag-check" checked> 标签</label>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-status-check" checked> 状态</label>
+          <div class="status-filter-wrapper">
+            <button class="status-filter-btn" id="status-filter-btn" type="button">状态选择 ▼</button>
+            <div class="status-filter-dropdown" id="status-filter-dropdown">
+              <label class="status-filter-item"><input type="checkbox" value="dirty"> 未提交<span class="status-desc">有修改/暂存/未跟踪文件</span></label>
+              <label class="status-filter-item"><input type="checkbox" value="ahead"> 未推送<span class="status-desc">有未推送的提交</span></label>
+              <label class="status-filter-item"><input type="checkbox" value="behind"> 未拉取<span class="status-desc">远程有新提交</span></label>
+              <label class="status-filter-item"><input type="checkbox" value="clean"> 干净<span class="status-desc">工作区干净,已同步</span></label>
+            </div>
+          </div>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-name-check" checked> 名称</label>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-readme-check" checked> README</label>
+          <span class="filter-divider"></span>
+          <div class="filter-summary" id="filter-summary"></div>
+          <button class="clear-filter-btn" id="clear-all-filters">清除全部</button>
+        </div>
+        <div class="sort-bar" id="sort-bar">
+          <button class="sort-btn" id="btn-refresh" title="刷新">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            刷新
+          </button>
+          <span class="sort-divider"></span>
+          <span class="sort-label">排序：</span>
+          <div class="sort-options">
+            <button class="sort-btn active" data-sort="name">名称</button>
+            <button class="sort-btn" data-sort="path">路径</button>
+            <button class="sort-btn" data-sort="dir">目录</button>
+            <button class="sort-btn" data-sort="status">Git状态</button>
+            <button class="sort-btn" data-sort="time">修改时间</button>
+            <button class="sort-btn" data-sort="size">大小</button>
+            <button class="sort-btn" data-sort="branch">分支</button>
+          </div>
+          <div class="sort-direction">
+            <button class="dir-btn active" data-dir="asc">↑</button>
+            <button class="dir-btn" data-dir="desc">↓</button>
+          </div>
+          <div class="card-style-switch">
+            <button class="style-btn active" data-style="card">卡片</button>
+            <button class="style-btn" data-style="list">列表</button>
+          </div>
+          <label class="filter-checkbox" id="git-only-label" title="勾选=仅显示Git仓库,取消=显示所有文件夹"><input type="checkbox" id="git-only-check"> 只显示仓库</label>
+        </div>
+        <div class="content-scroll" id="content-scroll">
+          <div id="content-area"></div>
+          <div id="empty-state" style="display:none;">
+            <div class="empty-icon">📂</div>
+            <div class="empty-text">添加一个项目目录开始浏览</div>
+            <div class="empty-subtext">支持添加多个目录,在目录模式间自由切换,项目模式聚合展示所有 Git 仓库</div>
+            <button class="btn btn-primary" id="choose-folder-btn">+ 添加目录</button>
+          </div>
+        </div>
+      </main>
+
+      <div class="resize-handle resize-handle-right" id="resize-handle-right"></div>
+
+      <aside class="detail-panel" id="detail-panel">
+        <div class="detail-empty" id="detail-empty">
+          <div class="detail-empty-icon">📋</div>
+          <div class="detail-empty-text">选择一个仓库查看详情</div>
+        </div>
+        <div class="detail-content" id="detail-content" style="display:none;">
+          <div class="detail-header">
+            <div class="detail-header-top">
+              <h3 id="detail-name">仓库名称</h3>
+              <button class="detail-fav-btn" id="detail-fav-btn" title="收藏/取消收藏">☆</button>
+            </div>
+            <div class="detail-path" id="detail-path">/path/to/repo</div>
+            <div class="detail-status" id="detail-status"></div>
+            <div class="detail-header-toolbar">
+              <button class="btn btn-tiny" id="toggle-assignments-btn" title="隐藏/显示未选中的分类和标签气泡">隐藏未选</button>
+            </div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="git-info">
+            <h4 class="section-toggle" data-target="detail-git-info">Git 信息 <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-git-info" id="detail-git-info"></div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="groups">
+            <div class="section-header-row">
+              <h4 class="section-toggle" data-target="detail-groups">分类 <span class="toggle-arrow">▼</span></h4>
+            </div>
+            <div class="detail-tags" id="detail-groups"></div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="tags">
+            <h4 class="section-toggle" data-target="detail-tags">标签 <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-tags" id="detail-tags"></div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="membership">
+            <h4 class="section-toggle" data-target="detail-membership">归属 <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-membership" id="detail-membership"></div>
+          </div>
+          <div class="detail-section collapsible collapsed" data-section-id="readme">
+            <h4 class="section-toggle" data-target="detail-readme">README <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-readme" id="detail-readme"></div>
+          </div>
+          <div class="detail-section detail-actions-section collapsible" data-section-id="git-actions">
+            <h4 class="section-toggle" data-target="git-actions-content">Git 操作 <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-actions" id="git-actions-content">
+              <button class="btn btn-primary" id="detail-pull-btn">拉取</button>
+              <button class="btn btn-success" id="detail-push-btn">推送</button>
+              <button class="btn" id="detail-fetch-btn">Fetch</button>
+              <button class="btn btn-warning" id="detail-commit-btn">提交</button>
+            </div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="terminal">
+            <h4 class="section-toggle" data-target="terminal-content">
+              终端
+              <span class="terminal-cwd" id="terminal-cwd"></span>
+              <span class="toggle-arrow">▼</span>
+            </h4>
+            <div class="terminal-panel" id="terminal-content">
+              <div class="terminal-output" id="terminal-output"></div>
+              <div class="terminal-input-line">
+                <span class="terminal-prompt">$</span>
+                <input type="text" id="terminal-input" class="terminal-input" placeholder="输入命令后按 Enter 执行..." autocomplete="off" spellcheck="false">
+              </div>
+              <div class="terminal-toolbar">
+                <button class="terminal-btn" id="terminal-clear-btn">清空</button>
+                <button class="terminal-btn" id="terminal-external-btn">在外部终端打开</button>
+              </div>
+            </div>
+          </div>
+          <div class="detail-section detail-actions-section collapsible" data-section-id="system-actions">
+            <h4 class="section-toggle" data-target="system-actions-content">系统操作 <span class="toggle-arrow">▼</span></h4>
+            <div class="detail-actions detail-actions-secondary" id="system-actions-content">
+              <button class="btn" id="detail-open-btn">在 Finder 中显示</button>
+              <button class="btn" id="detail-terminal-btn">打开终端</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="status-bar">
+      <div class="status-left" id="status-left">就绪</div>
+      <div class="status-center" id="status-center"></div>
+      <div class="status-right" id="status-right"></div>
+    </footer>
+  </div>
+
+  <div class="modal-overlay" id="commit-modal" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>提交变更</h3>
+        <button class="modal-close" data-modal="commit-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>提交信息</label>
+          <textarea id="commit-message" rows="4" placeholder="请输入提交信息..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>变更文件</label>
+          <div id="commit-files" class="commit-files"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-modal="commit-modal">取消</button>
+        <button class="btn btn-primary" id="confirm-commit-btn">提交</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="new-group-modal" style="display:none;">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h3>添加分类</h3>
+        <button class="modal-close" data-modal="new-group-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>分类名称</label>
+          <input type="text" id="new-group-name" placeholder="输入分类名称">
+        </div>
+        <div class="form-group">
+          <label>颜色</label>
+          <div class="color-picker" id="group-color-picker">
+            <div class="color-option active" data-color="#007AFF" style="background:#007AFF"></div>
+            <div class="color-option" data-color="#34C759" style="background:#34C759"></div>
+            <div class="color-option" data-color="#FF9500" style="background:#FF9500"></div>
+            <div class="color-option" data-color="#FF3B30" style="background:#FF3B30"></div>
+            <div class="color-option" data-color="#AF52DE" style="background:#AF52DE"></div>
+            <div class="color-option" data-color="#FFCC00" style="background:#FFCC00"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-modal="new-group-modal">取消</button>
+        <button class="btn btn-primary" id="confirm-new-group-btn">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="new-tag-modal" style="display:none;">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h3>添加标签</h3>
+        <button class="modal-close" data-modal="new-tag-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>标签名称</label>
+          <input type="text" id="new-tag-name" placeholder="输入标签名称">
+        </div>
+        <div class="form-group">
+          <label>颜色</label>
+          <div class="color-picker" id="tag-color-picker">
+            <div class="color-option active" data-color="#007AFF" style="background:#007AFF"></div>
+            <div class="color-option" data-color="#34C759" style="background:#34C759"></div>
+            <div class="color-option" data-color="#FF9500" style="background:#FF9500"></div>
+            <div class="color-option" data-color="#FF3B30" style="background:#FF3B30"></div>
+            <div class="color-option" data-color="#AF52DE" style="background:#AF52DE"></div>
+            <div class="color-option" data-color="#FFCC00" style="background:#FFCC00"></div>
+            <div class="color-option" data-color="#5AC8FA" style="background:#5AC8FA"></div>
+            <div class="color-option" data-color="#FF2D55" style="background:#FF2D55"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-modal="new-tag-modal">取消</button>
+        <button class="btn btn-primary" id="confirm-new-tag-btn">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="scan-modal" style="display:none;">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h3>扫描目录</h3>
+        <button class="modal-close" data-modal="scan-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>扫描目录</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="scan-path-input" placeholder="请选择要扫描的目录" readonly style="flex:1;">
+            <button class="btn" id="scan-pick-dir-btn">选择目录</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>扫描层级</label>
+          <input type="number" id="scan-depth-input" min="0" placeholder="不填 = 扫描所有层级" style="width:100%;">
+          <div style="font-size:11px;color:#86868b;margin-top:4px;">0 = 仅当前目录下一层,1 = 含两层,以此类推;留空则递归扫描所有层级</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-modal="scan-modal">取消</button>
+        <button class="btn btn-primary" id="confirm-scan-btn">开始扫描</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="new-board-modal" style="display:none;">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h3>新建白板</h3>
+        <button class="modal-close" data-modal="new-board-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>白板名称</label>
+          <input type="text" id="new-board-name" placeholder="输入白板名称">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" data-modal="new-board-modal">取消</button>
+        <button class="btn btn-primary" id="confirm-new-board-btn">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="theme-modal" style="display:none;">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h3>主题配色</h3>
+        <button class="modal-close" data-modal="theme-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="theme-list">
+          <div class="theme-section-label">外观模式</div>
+          <div class="theme-mode-grid">
+            <div class="theme-card" data-mode="light">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#ffffff"></div>
+                <div class="preview-block" style="background:#f6f6f6"></div>
+                <div class="preview-block" style="background:#1d1d1f"></div>
+              </div>
+              <div class="theme-card-name">☀️ 浅色</div>
+            </div>
+            <div class="theme-card" data-mode="dark">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#282c34"></div>
+                <div class="preview-block" style="background:#21252b"></div>
+                <div class="preview-block" style="background:#abb2bf"></div>
+              </div>
+              <div class="theme-card-name">🌙 深色</div>
+            </div>
+            <div class="theme-card" data-mode="auto">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:linear-gradient(135deg,#ffffff 50%,#282c34 50%)"></div>
+                <div class="preview-block" style="background:linear-gradient(135deg,#f6f6f6 50%,#21252b 50%)"></div>
+                <div class="preview-block" style="background:linear-gradient(135deg,#1d1d1f 50%,#abb2bf 50%)"></div>
+              </div>
+              <div class="theme-card-name">🖥 跟随系统</div>
+            </div>
+          </div>
+
+          <div class="theme-section-label">配色方案</div>
+          <div class="theme-scheme-grid">
+            <div class="theme-card" data-scheme="github">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#0969da"></div>
+                <div class="preview-block" style="background:#1f2328"></div>
+                <div class="preview-block" style="background:#656d76"></div>
+                <div class="preview-block" style="background:#d0d7de"></div>
+              </div>
+              <div class="theme-card-name">GitHub</div>
+            </div>
+            <div class="theme-card" data-scheme="onedark">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#4078f2"></div>
+                <div class="preview-block" style="background:#23272e"></div>
+                <div class="preview-block" style="background:#5c6370"></div>
+                <div class="preview-block" style="background:#d7dae0"></div>
+              </div>
+              <div class="theme-card-name">One Dark</div>
+            </div>
+            <div class="theme-card" data-scheme="dracula">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#7c3aed"></div>
+                <div class="preview-block" style="background:#2c2c3a"></div>
+                <div class="preview-block" style="background:#5c5c6a"></div>
+                <div class="preview-block" style="background:#d4d4d8"></div>
+              </div>
+              <div class="theme-card-name">Dracula</div>
+            </div>
+            <div class="theme-card" data-scheme="monokai">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#0d7ea6"></div>
+                <div class="preview-block" style="background:#3e3c3a"></div>
+                <div class="preview-block" style="background:#6a6663"></div>
+                <div class="preview-block" style="background:#d4cec0"></div>
+              </div>
+              <div class="theme-card-name">Monokai</div>
+            </div>
+            <div class="theme-card" data-scheme="solarized">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#268bd2"></div>
+                <div class="preview-block" style="background:#586e75"></div>
+                <div class="preview-block" style="background:#839496"></div>
+                <div class="preview-block" style="background:#d6cfb6"></div>
+              </div>
+              <div class="theme-card-name">Solarized</div>
+            </div>
+            <div class="theme-card" data-scheme="nord">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#5e81ac"></div>
+                <div class="preview-block" style="background:#2e3440"></div>
+                <div class="preview-block" style="background:#4c566a"></div>
+                <div class="preview-block" style="background:#d1d8e3"></div>
+              </div>
+              <div class="theme-card-name">Nord</div>
+            </div>
+            <div class="theme-card" data-scheme="muted">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#6b7f9c"></div>
+                <div class="preview-block" style="background:#3d3a36"></div>
+                <div class="preview-block" style="background:#6e6963"></div>
+                <div class="preview-block" style="background:#d8d4cd"></div>
+              </div>
+              <div class="theme-card-name">Muted</div>
+            </div>
+          </div>
+
+          <div class="theme-section-label">提醒色</div>
+          <div class="theme-scheme-grid">
+            <div class="theme-card" data-reminder="classic">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#3a8c4e"></div>
+                <div class="preview-block" style="background:#c4484a"></div>
+                <div class="preview-block" style="background:#9a6700"></div>
+                <div class="preview-block" style="background:#8250df"></div>
+              </div>
+              <div class="theme-card-name">经典</div>
+            </div>
+            <div class="theme-card" data-reminder="vivid">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#1a7f37"></div>
+                <div class="preview-block" style="background:#cf222e"></div>
+                <div class="preview-block" style="background:#bf8700"></div>
+                <div class="preview-block" style="background:#8250df"></div>
+              </div>
+              <div class="theme-card-name">鲜明</div>
+            </div>
+            <div class="theme-card" data-reminder="soft">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#6a8a6e"></div>
+                <div class="preview-block" style="background:#a86868"></div>
+                <div class="preview-block" style="background:#9a8055"></div>
+                <div class="preview-block" style="background:#7d6e9c"></div>
+              </div>
+              <div class="theme-card-name">柔和</div>
+            </div>
+            <div class="theme-card" data-reminder="colorblind">
+              <div class="theme-card-preview">
+                <div class="preview-block" style="background:#0072b2"></div>
+                <div class="preview-block" style="background:#d55e00"></div>
+                <div class="preview-block" style="background:#e69f00"></div>
+                <div class="preview-block" style="background:#cc79a7"></div>
+              </div>
+              <div class="theme-card-name">色盲友好</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/git.js"></script>
+  <script src="scripts/terminal.js"></script>
+  <script src="scripts/app.js"></script>
+  <script src="scripts/sidebar.js"></script>
+  <script src="scripts/content.js"></script>
+  <script src="scripts/detail.js"></script>
+  <script src="scripts/board.js"></script>
+</body>
+</html>

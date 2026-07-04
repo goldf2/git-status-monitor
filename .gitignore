@@ -10,3 +10,7 @@ __pycache__/
 .env.local
 .DS_Store
 *.log
+
+# 应用运行时缓存与配置(含敏感本地路径)
+.git-monitor-cache.json
+config/

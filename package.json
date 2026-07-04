@@ -1,8 +1,9 @@
 {
   "name": "git-status-monitor",
   "version": "1.0.0",
-  "description": "Git仓库状态监控应用",
+  "description": "GitFinder - 智能Git项目管理器",
   "main": "main.js",
+  "productName": "GitFinder",
   "bin": {
     "git-monitor": "./cli.js"
   },
@@ -31,7 +32,9 @@
       "main.js",
       "server.js",
       "cli.js",
+      "preload.js",
       "public/**/*",
+      "src/**/*",
       "node_modules/**/*"
     ],
     "mac": {

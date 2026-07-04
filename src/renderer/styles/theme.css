@@ -1,0 +1,506 @@
+/* ============================================================
+   主题系统:外观模式(light/dark/auto) × 配色方案(编程主题)
+   - data-mode: light | dark | auto(由 JS 解析为 light/dark)
+   - data-effective-mode: light | dark(JS 根据 mode+系统设置)
+   - data-scheme: github | onedark | dracula | monokai | solarized | nord
+   ============================================================ */
+
+:root {
+  /* 默认浅色核心变量(被具体 scheme 覆盖) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f6f6;
+  --bg-tertiary: #ececec;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-input: rgba(0, 0, 0, 0.06);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #86868b;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-light: rgba(0, 0, 0, 0.06);
+  --shadow-overlay: rgba(0, 0, 0, 0.3);
+  --modal-overlay: rgba(0, 0, 0, 0.5);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.25);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================================
+   提醒色(状态色)— 与主题方案解耦,可单独选择
+   data-reminder: classic | vivid | soft | colorblind
+   仅根据明暗模式调整亮度,切换 scheme 不影响状态色
+   ============================================================ */
+
+/* classic(经典)— 默认,平衡可读性 */
+[data-reminder="classic"][data-effective-mode="light"] {
+  --status-clean: #3a8c4e;
+  --status-dirty: #c4484a;
+  --status-ahead: #9a6700;
+  --status-behind: #8250df;
+  --status-none: #848d97;
+}
+[data-reminder="classic"][data-effective-mode="dark"] {
+  --status-clean: #4cc26e;
+  --status-dirty: #e8707a;
+  --status-ahead: #d29922;
+  --status-behind: #a371f7;
+  --status-none: #6e7681;
+}
+
+/* vivid(鲜明)— 高饱和度,强对比 */
+[data-reminder="vivid"][data-effective-mode="light"] {
+  --status-clean: #1a7f37;
+  --status-dirty: #cf222e;
+  --status-ahead: #bf8700;
+  --status-behind: #8250df;
+  --status-none: #656d76;
+}
+[data-reminder="vivid"][data-effective-mode="dark"] {
+  --status-clean: #3fb950;
+  --status-dirty: #f85149;
+  --status-ahead: #d29922;
+  --status-behind: #a371f7;
+  --status-none: #7d8590;
+}
+
+/* soft(柔和)— 低饱和度,长时间阅读友好 */
+[data-reminder="soft"][data-effective-mode="light"] {
+  --status-clean: #6a8a6e;
+  --status-dirty: #a86868;
+  --status-ahead: #9a8055;
+  --status-behind: #7d6e9c;
+  --status-none: #9a958e;
+}
+[data-reminder="soft"][data-effective-mode="dark"] {
+  --status-clean: #8aa88e;
+  --status-dirty: #c08a8a;
+  --status-ahead: #b89968;
+  --status-behind: #9a8ab8;
+  --status-none: #a8a39c;
+}
+
+/* colorblind(色盲友好)— 基于 Okabe-Ito 色板,红绿色盲可辨 */
+[data-reminder="colorblind"][data-effective-mode="light"] {
+  --status-clean: #0072b2;
+  --status-dirty: #d55e00;
+  --status-ahead: #e69f00;
+  --status-behind: #cc79a7;
+  --status-none: #6e7681;
+}
+[data-reminder="colorblind"][data-effective-mode="dark"] {
+  --status-clean: #56b4e9;
+  --status-dirty: #e69f00;
+  --status-ahead: #f0e442;
+  --status-behind: #cc79a7;
+  --status-none: #8b949e;
+}
+
+/* 兜底:无 data-reminder 时回退到 classic */
+[data-effective-mode="light"] {
+  --status-clean: #3a8c4e;
+  --status-dirty: #c4484a;
+  --status-ahead: #9a6700;
+  --status-behind: #8250df;
+  --status-none: #848d97;
+}
+[data-effective-mode="dark"] {
+  --status-clean: #4cc26e;
+  --status-dirty: #e8707a;
+  --status-ahead: #d29922;
+  --status-behind: #a371f7;
+  --status-none: #6e7681;
+}
+
+/* ============================================================
+   配色方案 - GitHub(GitHub 经典,默认方案)
+   ============================================================ */
+[data-scheme="github"][data-effective-mode="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --bg-hover: rgba(8, 9, 10, 0.04);
+  --bg-active: rgba(8, 9, 10, 0.08);
+  --bg-input: rgba(8, 9, 10, 0.06);
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-tertiary: #848d97;
+  --border-color: #d0d7de;
+  --border-light: #d8dee4;
+  --accent-primary: #0969da;
+  --accent-bg: rgba(9, 105, 218, 0.08);
+  --scrollbar-thumb: rgba(8, 9, 10, 0.2);
+  --scrollbar-thumb-hover: rgba(8, 9, 10, 0.35);
+}
+
+[data-scheme="github"][data-effective-mode="dark"] {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: rgba(177, 186, 196, 0.08);
+  --bg-active: rgba(177, 186, 196, 0.12);
+  --bg-input: rgba(177, 186, 196, 0.06);
+  --text-primary: #e6edf3;
+  --text-secondary: #7d8590;
+  --text-tertiary: #6e7681;
+  --border-color: #30363d;
+  --border-light: #21262d;
+  --accent-primary: #2f81f7;
+  --accent-bg: rgba(47, 129, 247, 0.12);
+  --shadow-overlay: rgba(0, 0, 0, 0.6);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(177, 186, 196, 0.2);
+  --scrollbar-thumb-hover: rgba(177, 186, 196, 0.35);
+}
+
+/* ============================================================
+   配色方案 - One Dark(Atom One Dark)
+   ============================================================ */
+[data-scheme="onedark"][data-effective-mode="light"] {
+  --bg-primary: #fafafa;
+  --bg-secondary: #f0f0f0;
+  --bg-tertiary: #e4e4e4;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --text-primary: #23272e;
+  --text-secondary: #5c6370;
+  --text-tertiary: #8a919c;
+  --border-color: #d7dae0;
+  --border-light: #e4e7eb;
+  --accent-primary: #4078f2;
+  --accent-bg: rgba(64, 120, 242, 0.1);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+}
+
+[data-scheme="onedark"][data-effective-mode="dark"] {
+  --bg-primary: #282c34;
+  --bg-secondary: #21252b;
+  --bg-tertiary: #2c313a;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --text-primary: #abb2bf;
+  --text-secondary: #848a97;
+  --text-tertiary: #5c6370;
+  --border-color: #3b4048;
+  --border-light: #2c313a;
+  --accent-primary: #61afef;
+  --accent-bg: rgba(97, 175, 239, 0.12);
+  --shadow-overlay: rgba(0, 0, 0, 0.6);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================
+   配色方案 - Dracula
+   ============================================================ */
+[data-scheme="dracula"][data-effective-mode="light"] {
+  --bg-primary: #f8f8f2;
+  --bg-secondary: #eeeef0;
+  --bg-tertiary: #e0e0e2;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --text-primary: #2c2c3a;
+  --text-secondary: #5c5c6a;
+  --text-tertiary: #8a8a98;
+  --border-color: #d4d4d8;
+  --border-light: #e4e4e8;
+  --accent-primary: #7c3aed;
+  --accent-bg: rgba(124, 58, 237, 0.1);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+}
+
+[data-scheme="dracula"][data-effective-mode="dark"] {
+  --bg-primary: #282a36;
+  --bg-secondary: #21222c;
+  --bg-tertiary: #2c2f3d;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --text-primary: #f8f8f2;
+  --text-secondary: #b9bcbd;
+  --text-tertiary: #6272a4;
+  --border-color: #44475a;
+  --border-light: #383a4d;
+  --accent-primary: #bd93f9;
+  --accent-bg: rgba(189, 147, 249, 0.15);
+  --shadow-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(248, 248, 242, 0.18);
+  --scrollbar-thumb-hover: rgba(248, 248, 242, 0.3);
+}
+
+/* ============================================================
+   配色方案 - Monokai(Sublime 经典)
+   ============================================================ */
+[data-scheme="monokai"][data-effective-mode="light"] {
+  --bg-primary: #faf8f5;
+  --bg-secondary: #f0ece5;
+  --bg-tertiary: #e4dfd5;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --text-primary: #3e3c3a;
+  --text-secondary: #6a6663;
+  --text-tertiary: #8e8a85;
+  --border-color: #d4cec0;
+  --border-light: #e4dfd5;
+  --accent-primary: #0d7ea6;
+  --accent-bg: rgba(13, 126, 166, 0.1);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+}
+
+[data-scheme="monokai"][data-effective-mode="dark"] {
+  --bg-primary: #272822;
+  --bg-secondary: #1e1f1c;
+  --bg-tertiary: #2f302a;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --text-primary: #f8f8f2;
+  --text-secondary: #c2c1bf;
+  --text-tertiary: #75715e;
+  --border-color: #3e3d32;
+  --border-light: #2f302a;
+  --accent-primary: #66d9ef;
+  --accent-bg: rgba(102, 217, 239, 0.15);
+  --shadow-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(248, 248, 242, 0.18);
+  --scrollbar-thumb-hover: rgba(248, 248, 242, 0.3);
+}
+
+/* ============================================================
+   配色方案 - Solarized(Ethan Schoonover)
+   ============================================================ */
+[data-scheme="solarized"][data-effective-mode="light"] {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #eee8d5;
+  --bg-tertiary: #e4dcc4;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-input: rgba(0, 0, 0, 0.05);
+  --text-primary: #586e75;
+  --text-secondary: #839496;
+  --text-tertiary: #93a1a1;
+  --border-color: #d6cfb6;
+  --border-light: #e4dcc4;
+  --accent-primary: #268bd2;
+  --accent-bg: rgba(38, 139, 210, 0.12);
+  --scrollbar-thumb: rgba(7, 54, 66, 0.25);
+  --scrollbar-thumb-hover: rgba(7, 54, 66, 0.4);
+}
+
+[data-scheme="solarized"][data-effective-mode="dark"] {
+  --bg-primary: #002b36;
+  --bg-secondary: #073642;
+  --bg-tertiary: #0d3b47;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --text-primary: #93a1a1;
+  --text-secondary: #839496;
+  --text-tertiary: #586e75;
+  --border-color: #073d49;
+  --border-light: #0d3b47;
+  --accent-primary: #2aa198;
+  --accent-bg: rgba(42, 161, 152, 0.15);
+  --shadow-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(147, 161, 161, 0.22);
+  --scrollbar-thumb-hover: rgba(147, 161, 161, 0.35);
+}
+
+/* ============================================================
+   配色方案 - Nord(北极冷色系)
+   ============================================================ */
+[data-scheme="nord"][data-effective-mode="light"] {
+  --bg-primary: #eceff4;
+  --bg-secondary: #e5e9f0;
+  --bg-tertiary: #d8dee9;
+  --bg-hover: rgba(46, 52, 64, 0.05);
+  --bg-active: rgba(46, 52, 64, 0.1);
+  --bg-input: rgba(46, 52, 64, 0.06);
+  --text-primary: #2e3440;
+  --text-secondary: #4c566a;
+  --text-tertiary: #7b8494;
+  --border-color: #d1d8e3;
+  --border-light: #e0e6ed;
+  --accent-primary: #5e81ac;
+  --accent-bg: rgba(94, 129, 172, 0.12);
+  --scrollbar-thumb: rgba(46, 52, 64, 0.22);
+  --scrollbar-thumb-hover: rgba(46, 52, 64, 0.38);
+}
+
+[data-scheme="nord"][data-effective-mode="dark"] {
+  --bg-primary: #2e3440;
+  --bg-secondary: #242933;
+  --bg-tertiary: #3b4252;
+  --bg-hover: rgba(216, 222, 233, 0.06);
+  --bg-active: rgba(216, 222, 233, 0.1);
+  --bg-input: rgba(216, 222, 233, 0.06);
+  --text-primary: #eceff4;
+  --text-secondary: #aeb3c0;
+  --text-tertiary: #7b8494;
+  --border-color: #434c5e;
+  --border-light: #3b4252;
+  --accent-primary: #88c0d0;
+  --accent-bg: rgba(136, 192, 208, 0.15);
+  --shadow-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(216, 222, 233, 0.2);
+  --scrollbar-thumb-hover: rgba(216, 222, 233, 0.32);
+}
+
+/* ============================================================
+   配色方案 - Muted(低饱和度柔和灰调,长时间阅读友好)
+   ============================================================ */
+[data-scheme="muted"][data-effective-mode="light"] {
+  --bg-primary: #faf9f7;
+  --bg-secondary: #f1efec;
+  --bg-tertiary: #e5e2dd;
+  --bg-hover: rgba(61, 58, 54, 0.05);
+  --bg-active: rgba(61, 58, 54, 0.1);
+  --bg-input: rgba(61, 58, 54, 0.06);
+  --text-primary: #3d3a36;
+  --text-secondary: #6e6963;
+  --text-tertiary: #9a958e;
+  --border-color: #d8d4cd;
+  --border-light: #e5e2dd;
+  --accent-primary: #6b7f9c;
+  --accent-bg: rgba(107, 127, 156, 0.12);
+  --scrollbar-thumb: rgba(61, 58, 54, 0.2);
+  --scrollbar-thumb-hover: rgba(61, 58, 54, 0.35);
+}
+
+[data-scheme="muted"][data-effective-mode="dark"] {
+  --bg-primary: #2a2926;
+  --bg-secondary: #232120;
+  --bg-tertiary: #33312e;
+  --bg-hover: rgba(212, 207, 200, 0.06);
+  --bg-active: rgba(212, 207, 200, 0.1);
+  --bg-input: rgba(212, 207, 200, 0.06);
+  --text-primary: #d4cfc8;
+  --text-secondary: #a8a39c;
+  --text-tertiary: #75716a;
+  --border-color: #3d3a36;
+  --border-light: #33312e;
+  --accent-primary: #8ba3bf;
+  --accent-bg: rgba(139, 163, 191, 0.15);
+  --shadow-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --scrollbar-thumb: rgba(212, 207, 200, 0.2);
+  --scrollbar-thumb-hover: rgba(212, 207, 200, 0.32);
+}
+
+/* 主题选择器 */
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.theme-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  margin-top: 8px;
+}
+
+.theme-section-label:first-child {
+  margin-top: 0;
+}
+
+.theme-mode-grid,
+.theme-scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+#theme-modal .modal-small {
+  width: 420px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  transition: all 0.15s ease;
+}
+
+.theme-card:hover {
+  background: var(--bg-hover);
+}
+
+.theme-card.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-bg);
+}
+
+.theme-card-preview {
+  display: flex;
+  gap: 4px;
+  height: 24px;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.theme-card-preview .preview-block {
+  flex: 1;
+}
+
+.theme-card-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.theme-card.active .theme-card-name {
+  color: var(--accent-primary);
+}
+
+/* ============================================================
+   滚动条主题适配
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(0, 0, 0, 0.25));
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(0, 0, 0, 0.4));
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
