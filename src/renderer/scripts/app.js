@@ -57,11 +57,12 @@ const App = {
     }
     await this.loadTheme();
     await this.loadSidebarData();
+    // 先加载持久化的仓库列表(避免启动时重新扫描)
+    // 必须在 loadGroups 之前,否则侧边栏分类计数会显示为 0
+    await this.loadPersistedRepos();
     this.loadGroups();
     this.loadTags();
     this.loadBoards();
-    // 加载持久化的仓库列表(避免启动时重新扫描)
-    await this.loadPersistedRepos();
     this.updateFilterBar();
     // 加载保存的区域排列顺序
     AppState.detailSectionOrder = await window.gitFinder.config.get('detailSectionOrder');
@@ -1862,6 +1863,22 @@ const App = {
     }));
 
     AppState.enrichedRepos = enriched;
+
+    // enrichment 完成后,如果当前是 grid 模式且有筛选条件,需要重新渲染
+    // 因为首次渲染用了默认 gitStatus(都是 clean),状态筛选可能误过滤掉真实匹配的仓库
+    if (AppState.currentMode === 'grid') {
+      const hasFilter = (AppState.filterEnabled.status && AppState.selectedStatuses.length > 0) ||
+                        (AppState.filterEnabled.tag && AppState.selectedTags.length > 0) ||
+                        (AppState.searchQuery && (AppState.filterEnabled.name || AppState.filterEnabled.readme));
+      if (hasFilter) {
+        const contentArea = document.getElementById('content-area');
+        if (contentArea) {
+          const displayRepos = this._prepareDisplayRepos();
+          this._renderGridContent(displayRepos, contentArea);
+          this.updateStatusBar();
+        }
+      }
+    }
   },
 
   _updateRepoCard(path, status, tags, readme, groups, boards) {
