@@ -9,7 +9,6 @@ class ConfigService {
     this.configFile = null;
     this.groupsFile = null;
     this.tagsFile = null;
-    this.boardsDir = null;
     this.reposFile = null;
     this.config = null;
     this.groups = null;
@@ -29,14 +28,10 @@ class ConfigService {
     this.configFile = path.join(this.configDir, 'config.json');
     this.groupsFile = path.join(this.configDir, 'groups.json');
     this.tagsFile = path.join(this.configDir, 'tags.json');
-    this.boardsDir = path.join(this.configDir, 'boards');
     this.reposFile = path.join(this.configDir, 'repos.json');
 
     if (!fs.existsSync(this.configDir)) {
       fs.mkdirSync(this.configDir, { recursive: true });
-    }
-    if (!fs.existsSync(this.boardsDir)) {
-      fs.mkdirSync(this.boardsDir, { recursive: true });
     }
   }
 
@@ -362,62 +357,6 @@ class ConfigService {
     const tagsData = this.getTags();
     const tagIds = tagsData.repoTags[repoPath] || [];
     return tagsData.tags.filter(t => tagIds.includes(t.id));
-  }
-
-  // ============ 白板 ============
-
-  getBoards() {
-    this._ensureDirs();
-    const files = fs.readdirSync(this.boardsDir).filter(f => f.endsWith('.json'));
-    const boards = files.map(f => {
-      const content = JSON.parse(fs.readFileSync(path.join(this.boardsDir, f), 'utf-8'));
-      return { id: content.id, name: content.name, updatedAt: content.updatedAt };
-    });
-    return boards.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-  }
-
-  getBoard(id) {
-    this._ensureDirs();
-    const file = path.join(this.boardsDir, `${id}.json`);
-    if (fs.existsSync(file)) {
-      return JSON.parse(fs.readFileSync(file, 'utf-8'));
-    }
-    return null;
-  }
-
-  createBoard(name) {
-    this._ensureDirs();
-    const id = 'b_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-    const now = new Date().toISOString();
-    const board = {
-      id,
-      name,
-      createdAt: now,
-      updatedAt: now,
-      viewport: { x: 0, y: 0, scale: 1 },
-      components: [],
-      connections: []
-    };
-    fs.writeFileSync(path.join(this.boardsDir, `${id}.json`), JSON.stringify(board, null, 2));
-    return board;
-  }
-
-  saveBoard(id, data) {
-    this._ensureDirs();
-    const file = path.join(this.boardsDir, `${id}.json`);
-    const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : {};
-    const board = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(file, JSON.stringify(board, null, 2));
-    return board;
-  }
-
-  deleteBoard(id) {
-    this._ensureDirs();
-    const file = path.join(this.boardsDir, `${id}.json`);
-    if (fs.existsSync(file)) {
-      fs.unlinkSync(file);
-    }
-    return true;
   }
 
   // ============ 仓库列表持久化 ============

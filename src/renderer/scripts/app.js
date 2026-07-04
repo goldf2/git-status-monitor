@@ -19,16 +19,13 @@ const AppState = {
   groupOrder: null, // 分类拖拽顺序(null=默认,存储 group.id 数组)
   filterEnabled: { category: true, tag: true, status: true, name: true, readme: true },
   showAllAssignments: true, // 详情面板是否显示未选中的分类/标签
-  detailSections: { groups: true, tags: true, membership: true, readme: true, 'git-actions': true, 'system-actions': true },
+  detailSections: { groups: true, tags: true, readme: true, 'git-actions': true, 'system-actions': true },
   detailSectionOrder: null, // 区域排列顺序(null=默认)
   sidebarSectionOrder: null, // 侧栏 section 排列顺序(null=默认)
   sidebarCollapsedSections: new Set(), // 侧栏 section 折叠状态(存储 section-id)
   searchQuery: '',
   history: [],
   historyIndex: -1,
-  boards: [],
-  currentBoardId: null,
-  currentBoard: null,
   reposLastScan: 0,
   scanDepth: 3, // 扫描层级, Infinity = 全部层级
   isLoading: false,
@@ -62,7 +59,6 @@ const App = {
     await this.loadPersistedRepos();
     this.loadGroups();
     this.loadTags();
-    this.loadBoards();
     this.updateFilterBar();
     // 加载保存的区域排列顺序
     AppState.detailSectionOrder = await window.gitFinder.config.get('detailSectionOrder');
@@ -211,6 +207,9 @@ const App = {
       this.syncThemeModal();
       document.getElementById('theme-modal').style.display = 'flex';
     });
+
+    // 检查更新
+    this._setupUpdater();
 
     // 外观模式选择(浅色/深色/跟随系统)
     document.querySelectorAll('.theme-card[data-mode]').forEach(card => {
@@ -461,6 +460,84 @@ const App = {
       this.renderContent();
       document.getElementById('new-tag-modal').style.display = 'none';
     });
+  },
+
+  // ============ 自动升级 ============
+
+  async _setupUpdater() {
+    const versionEl = document.getElementById('app-version');
+    const btn = document.getElementById('btn-check-update');
+    if (!btn || !versionEl) return;
+
+    // 显示当前版本
+    try {
+      const version = await window.gitFinder.app.getVersion();
+      versionEl.textContent = `v${version}`;
+    } catch (e) {
+      versionEl.textContent = 'v-';
+    }
+
+    // 点击版本号也触发检查
+    versionEl.addEventListener('click', () => this._checkForUpdates());
+    btn.addEventListener('click', () => this._checkForUpdates());
+
+    // 监听主进程的更新事件
+    window.gitFinder.updater.onUpToDate(() => {
+      btn.classList.remove('checking');
+      btn.textContent = '已是最新';
+      setTimeout(() => { btn.textContent = '检查更新'; }, 3000);
+    });
+
+    window.gitFinder.updater.onDownloading(() => {
+      btn.classList.remove('checking');
+      btn.classList.add('has-update');
+      btn.textContent = '下载中...';
+    });
+
+    window.gitFinder.updater.onProgress((data) => {
+      btn.textContent = `下载中 ${Math.round(data.percent)}%`;
+    });
+
+    window.gitFinder.updater.onError((msg) => {
+      btn.classList.remove('checking', 'has-update');
+      btn.textContent = '检查更新';
+      this._showStatusMessage(`更新失败: ${msg}`, 'error');
+    });
+  },
+
+  async _checkForUpdates() {
+    const btn = document.getElementById('btn-check-update');
+    if (!btn) return;
+    btn.classList.add('checking');
+    btn.textContent = '检查中...';
+    try {
+      const result = await window.gitFinder.updater.check();
+      btn.classList.remove('checking');
+      if (result.available) {
+        btn.classList.add('has-update');
+        btn.textContent = `新版本 ${result.version}`;
+      } else if (result.reason === 'development') {
+        btn.textContent = '开发模式';
+        setTimeout(() => { btn.textContent = '检查更新'; }, 2000);
+      } else if (result.error) {
+        btn.textContent = '检查更新';
+        this._showStatusMessage(`检查更新失败: ${result.error}`, 'error');
+      } else {
+        btn.textContent = '已是最新';
+        setTimeout(() => { btn.textContent = '检查更新'; }, 3000);
+      }
+    } catch (e) {
+      btn.classList.remove('checking');
+      btn.textContent = '检查更新';
+    }
+  },
+
+  _showStatusMessage(msg, type) {
+    const el = document.getElementById('status-left');
+    if (!el) return;
+    const original = el.textContent;
+    el.textContent = msg;
+    setTimeout(() => { el.textContent = original; }, 4000);
   },
 
   // 应用侧栏 section 排列顺序
@@ -1303,11 +1380,6 @@ const App = {
     });
   },
 
-  async loadBoards() {
-    AppState.boards = await window.gitFinder.boards.list();
-    this.renderSidebarBoards();
-  },
-
   async loadTheme() {
     try {
       // 加载外观模式(默认 light)和配色方案(默认 github)和提醒色(默认 classic)
@@ -1390,9 +1462,6 @@ const App = {
     });
   },
 
-  renderSidebarBoards() {
-  },
-
   // 加载持久化的仓库列表
   async loadPersistedRepos() {
     try {
@@ -1441,15 +1510,10 @@ const App = {
       sortBar.style.display = 'flex';
       if (filterBar) filterBar.style.display = 'none';
       if (showFoldersLabel) showFoldersLabel.style.display = '';
-    } else if (AppState.currentMode === 'grid') {
+    } else {
       // 按仓库显示:有排序栏和筛选栏
       sortBar.style.display = 'flex';
       if (filterBar) filterBar.style.display = 'flex';
-      if (showFoldersLabel) showFoldersLabel.style.display = 'none';
-    } else {
-      // 白板模式:无排序栏和筛选栏
-      sortBar.style.display = 'none';
-      if (filterBar) filterBar.style.display = 'none';
       if (showFoldersLabel) showFoldersLabel.style.display = 'none';
     }
   },
@@ -1657,8 +1721,6 @@ const App = {
         await this.renderTreeView();
       } else if (AppState.currentMode === 'grid') {
         await this.renderGridView();
-      } else if (AppState.currentMode === 'board') {
-        await this.renderBoardView();
       }
     } catch (e) {
       console.error('renderContent error:', e);
@@ -1794,8 +1856,7 @@ const App = {
       gitStatus: { isGitRepo: true, branch: '', modified: 0, ahead: 0, behind: 0, overallStatus: 'clean' },
       tags: [],
       readme: r.readme || null,
-      groups: [],
-      boards: []
+      groups: []
     }));
 
     const filtered = this.filterRepos(repos);
@@ -1842,7 +1903,6 @@ const App = {
   },
 
   async _enrichReposAsync() {
-    const boardRefsMap = await this._buildBoardRefsMap();
     const enriched = [];
     const pathToRepo = new Map(AppState.allRepos.map(r => [r.path, r]));
 
@@ -1854,11 +1914,10 @@ const App = {
           window.gitFinder.fs.getReadmePreview(repo.path).catch(() => null)
         ]);
         const groups = this._findRepoGroups(repo.path);
-        const boards = boardRefsMap[repo.path] || [];
-        enriched.push({ ...repo, gitStatus: status, tags, readme: readme || repo.readme, groups, boards });
-        this._updateRepoCard(repo.path, status, tags, readme, groups, boards);
+        enriched.push({ ...repo, gitStatus: status, tags, readme: readme || repo.readme, groups });
+        this._updateRepoCard(repo.path, status, tags, readme, groups);
       } catch (e) {
-        enriched.push({ ...repo, gitStatus: { isGitRepo: false }, tags: [], readme: repo.readme, groups: [], boards: [] });
+        enriched.push({ ...repo, gitStatus: { isGitRepo: false }, tags: [], readme: repo.readme, groups: [] });
       }
     }));
 
@@ -1881,7 +1940,7 @@ const App = {
     }
   },
 
-  _updateRepoCard(path, status, tags, readme, groups, boards) {
+  _updateRepoCard(path, status, tags, readme, groups) {
     const card = document.querySelector(`[data-path="${path}"]`);
     if (!card) return;
 
@@ -1913,87 +1972,6 @@ const App = {
       }
     }
     return result;
-  },
-
-  // 构建白板引用映射: repoPath -> [{id, name}, ...]
-  async _buildBoardRefsMap() {
-    const map = {};
-    if (!AppState.boards || AppState.boards.length === 0) return map;
-    // 并行加载所有白板完整数据
-    const fullBoards = await Promise.all(
-      AppState.boards.map(b => window.gitFinder.boards.get(b.id).catch(() => null))
-    );
-    for (const board of fullBoards) {
-      if (!board || !board.components) continue;
-      for (const comp of board.components) {
-        if (comp.type === 'repo' && comp.repoPath) {
-          if (!map[comp.repoPath]) map[comp.repoPath] = [];
-          if (!map[comp.repoPath].find(b => b.id === board.id)) {
-            map[comp.repoPath].push({ id: board.id, name: board.name });
-          }
-        }
-      }
-    }
-    return map;
-  },
-
-  async renderBoardView() {
-    const contentArea = document.getElementById('content-area');
-
-    if (AppState.boards.length === 0) {
-      contentArea.innerHTML = `
-        <div style="text-align:center;padding:80px;color:#86868b;">
-          <div style="font-size:48px;margin-bottom:16px;opacity:0.4;">⬛</div>
-          <div style="font-size:14px;margin-bottom:16px;">还没有白板</div>
-          <button class="btn btn-primary" onclick="App.createNewBoard()">+ 新建白板</button>
-        </div>
-      `;
-      return;
-    }
-
-    if (!AppState.currentBoardId) {
-      contentArea.innerHTML = `
-        <div style="padding:20px;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:12px;">选择白板</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
-            ${AppState.boards.map(b => `
-              <div class="repo-card" style="cursor:pointer;" onclick="App.openBoard('${b.id}')">
-                <div style="text-align:center;padding:20px 0;">
-                  <div style="font-size:32px;margin-bottom:8px;">⬛</div>
-                  <div style="font-weight:600;">${b.name}</div>
-                  <div style="font-size:11px;color:#86868b;margin-top:4px;">${new Date(b.updatedAt).toLocaleDateString()}</div>
-                </div>
-              </div>
-            `).join('')}
-            <div class="repo-card" style="cursor:pointer;border:1px dashed rgba(0,0,0,0.2);" onclick="App.createNewBoard()">
-              <div style="text-align:center;padding:20px 0;color:#86868b;">
-                <div style="font-size:32px;margin-bottom:8px;">+</div>
-                <div>新建白板</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const board = await window.gitFinder.boards.get(AppState.currentBoardId);
-    AppState.currentBoard = board;
-    BoardRenderer.render(contentArea, board);
-  },
-
-  async createNewBoard() {
-    const name = prompt('白板名称：');
-    if (!name) return;
-    const board = await window.gitFinder.boards.create(name);
-    AppState.boards = await window.gitFinder.boards.list();
-    AppState.currentBoardId = board.id;
-    this.renderContent();
-  },
-
-  async openBoard(id) {
-    AppState.currentBoardId = id;
-    this.renderContent();
   },
 
   filterRepos(repos) {
@@ -2143,7 +2121,6 @@ const App = {
     const readme = item.readme || {};
     const tags = item.tags || [];
     const groups = item.groups || [];
-    const boards = item.boards || [];
 
     return `
       <div class="repo-card status-${overallStatus}" data-path="${item.path}" data-is-git="${item.isGitRepo}">
@@ -2163,20 +2140,12 @@ const App = {
             ${tags.map(t => `<span class="repo-tag" style="background:${t.color}20;color:${t.color};border:1px solid ${t.color}40;">${t.name}</span>`).join('')}
           </div>
         ` : ''}
-        ${(groups.length > 0 || boards.length > 0) ? `
+        ${groups.length > 0 ? `
           <div class="repo-meta">
-            ${groups.length > 0 ? `
-              <div class="repo-meta-row">
-                <span class="repo-meta-label">组:</span>
-                ${groups.map(g => `<span class="repo-meta-chip" style="background:${g.color}20;color:${g.color};border:1px solid ${g.color}40;">📁 ${g.name}</span>`).join('')}
-              </div>
-            ` : ''}
-            ${boards.length > 0 ? `
-              <div class="repo-meta-row">
-                <span class="repo-meta-label">白板:</span>
-                ${boards.map(b => `<span class="repo-meta-chip">⬛ ${b.name}</span>`).join('')}
-              </div>
-            ` : ''}
+            <div class="repo-meta-row">
+              <span class="repo-meta-label">组:</span>
+              ${groups.map(g => `<span class="repo-meta-chip" style="background:${g.color}20;color:${g.color};border:1px solid ${g.color}40;">📁 ${g.name}</span>`).join('')}
+            </div>
           </div>
         ` : ''}
         <div class="repo-readme">
@@ -2316,10 +2285,8 @@ const App = {
     const readme = await window.gitFinder.fs.getReadmePreview(repoPath);
     const tags = await window.gitFinder.tags.getRepoTags(repoPath);
     const groups = this._findRepoGroups(repoPath);
-    const boardRefsMap = await this._buildBoardRefsMap();
-    const boards = boardRefsMap[repoPath] || [];
 
-    AppState.selectedRepo = { ...info, gitStatus: status, readme, tags, groups, boards };
+    AppState.selectedRepo = { ...info, gitStatus: status, readme, tags, groups };
     // 同步终端工作目录
     if (typeof Terminal !== 'undefined') {
       Terminal.setCwd(repoPath);
@@ -2495,22 +2462,6 @@ const App = {
         </div>
       ` : ''}
     `;
-
-    // 归属信息:白板引用(分类已在上方"分类"区管理)
-    const membershipEl = document.getElementById('detail-membership');
-    const boards = repo.boards || [];
-    if (boards.length === 0) {
-      membershipEl.innerHTML = '<div style="font-size:12px;color:#86868b;">未被白板引用</div>';
-    } else {
-      membershipEl.innerHTML = `
-        <div class="detail-membership-row">
-          <span class="detail-membership-label">白板引用:</span>
-          <div class="detail-membership-chips">
-            ${boards.map(b => `<span class="detail-membership-chip" style="background:rgba(120,120,128,0.12);color:#6e6e73;">⬛ ${b.name}</span>`).join('')}
-          </div>
-        </div>
-      `;
-    }
 
     // 分类:显示已有分类,已加入的高亮,点击切换赋值
     const groupsEl = document.getElementById('detail-groups');

@@ -254,6 +254,44 @@ body {
   gap: 12px;
 }
 
+.status-version {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.status-version:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
+.status-update-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+
+.status-update-btn:hover {
+  color: var(--accent-primary);
+}
+
+.status-update-btn.checking {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.status-update-btn.has-update {
+  color: var(--status-ahead, #d29922);
+  font-weight: 500;
+}
+
 .btn {
   padding: 6px 14px;
   border: 1px solid var(--border-color);

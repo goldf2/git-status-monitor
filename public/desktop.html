@@ -64,11 +64,6 @@
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </button>
-          <button class="view-btn" data-view="board" title="白板看板">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-            </svg>
-          </button>
         </div>
         <button class="nav-btn" id="btn-settings" title="设置">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -94,10 +89,6 @@
           <div class="sidebar-item" data-mode="group">
             <span class="sidebar-icon">⊞</span>
             <span>仓库组</span>
-          </div>
-          <div class="sidebar-item" data-mode="board">
-            <span class="sidebar-icon">⬛</span>
-            <span>白板看板</span>
           </div>
         </div>
 
@@ -291,30 +282,10 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="new-board-modal" style="display:none;">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <h3>新建白板</h3>
-        <button class="modal-close" data-modal="new-board-modal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>白板名称</label>
-          <input type="text" id="new-board-name" placeholder="输入白板名称">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" data-modal="new-board-modal">取消</button>
-        <button class="btn btn-primary" id="confirm-new-board-btn">创建</button>
-      </div>
-    </div>
-  </div>
-
   <script src="scripts/app.js"></script>
   <script src="scripts/sidebar.js"></script>
   <script src="scripts/content.js"></script>
   <script src="scripts/detail.js"></script>
   <script src="scripts/git.js"></script>
-  <script src="scripts/board.js"></script>
 </body>
 </html>

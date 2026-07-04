@@ -74,20 +74,26 @@ contextBridge.exposeInMainWorld('gitFinder', {
     getRepoTags: (repoPath) => ipcRenderer.invoke('tags:getRepoTags', repoPath)
   },
 
-  boards: {
-    list: () => ipcRenderer.invoke('boards:list'),
-    get: (id) => ipcRenderer.invoke('boards:get', id),
-    create: (name) => ipcRenderer.invoke('boards:create', name),
-    save: (id, data) => ipcRenderer.invoke('boards:save', id, data),
-    delete: (id) => ipcRenderer.invoke('boards:delete', id)
-  },
-
   repos: {
     get: () => ipcRenderer.invoke('repos:get'),
     set: (repos, lastScanAt) => ipcRenderer.invoke('repos:set', repos, lastScanAt),
     merge: (repos) => ipcRenderer.invoke('repos:merge', repos),
     remove: (repoPath) => ipcRenderer.invoke('repos:remove', repoPath),
     clear: () => ipcRenderer.invoke('repos:clear')
+  },
+
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onDownloading: (cb) => ipcRenderer.on('updater:downloading', cb),
+    onProgress: (cb) => ipcRenderer.on('updater:progress', (_e, data) => cb(data)),
+    onUpToDate: (cb) => ipcRenderer.on('updater:up-to-date', cb),
+    onError: (cb) => ipcRenderer.on('updater:error', (_e, msg) => cb(msg))
+  },
+
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:get-version')
   },
 
   platform: process.platform

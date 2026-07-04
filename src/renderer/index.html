@@ -64,11 +64,6 @@
               <rect x="3" y="14" width="7" height="7"></rect>
             </svg>
           </button>
-          <button class="view-btn" data-view="board" title="白板模式(类 Obsidian Canvas)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-            </svg>
-          </button>
         </div>
         <button class="nav-btn" id="btn-theme" title="主题配色">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -231,10 +226,6 @@
             <h4 class="section-toggle" data-target="detail-tags">标签 <span class="toggle-arrow">▼</span></h4>
             <div class="detail-tags" id="detail-tags"></div>
           </div>
-          <div class="detail-section collapsible" data-section-id="membership">
-            <h4 class="section-toggle" data-target="detail-membership">归属 <span class="toggle-arrow">▼</span></h4>
-            <div class="detail-membership" id="detail-membership"></div>
-          </div>
           <div class="detail-section collapsible collapsed" data-section-id="readme">
             <h4 class="section-toggle" data-target="detail-readme">README <span class="toggle-arrow">▼</span></h4>
             <div class="detail-readme" id="detail-readme"></div>
@@ -280,7 +271,10 @@
     <footer class="status-bar">
       <div class="status-left" id="status-left">就绪</div>
       <div class="status-center" id="status-center"></div>
-      <div class="status-right" id="status-right"></div>
+      <div class="status-right" id="status-right">
+        <span id="app-version" class="status-version" title="点击检查更新">v-</span>
+        <button class="status-update-btn" id="btn-check-update" title="检查更新">检查更新</button>
+      </div>
     </footer>
   </div>
 
@@ -392,25 +386,6 @@
       <div class="modal-footer">
         <button class="btn" data-modal="scan-modal">取消</button>
         <button class="btn btn-primary" id="confirm-scan-btn">开始扫描</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="new-board-modal" style="display:none;">
-    <div class="modal modal-small">
-      <div class="modal-header">
-        <h3>新建白板</h3>
-        <button class="modal-close" data-modal="new-board-modal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>白板名称</label>
-          <input type="text" id="new-board-name" placeholder="输入白板名称">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" data-modal="new-board-modal">取消</button>
-        <button class="btn btn-primary" id="confirm-new-board-btn">创建</button>
       </div>
     </div>
   </div>
@@ -568,6 +543,5 @@
   <script src="scripts/sidebar.js"></script>
   <script src="scripts/content.js"></script>
   <script src="scripts/detail.js"></script>
-  <script src="scripts/board.js"></script>
 </body>
 </html>

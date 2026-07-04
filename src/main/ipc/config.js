@@ -98,26 +98,6 @@ function registerConfigIPC() {
     return configService.getRepoTags(repoPath);
   });
 
-  ipcMain.handle('boards:list', async () => {
-    return configService.getBoards();
-  });
-
-  ipcMain.handle('boards:get', async (event, id) => {
-    return configService.getBoard(id);
-  });
-
-  ipcMain.handle('boards:create', async (event, name) => {
-    return configService.createBoard(name);
-  });
-
-  ipcMain.handle('boards:save', async (event, id, data) => {
-    return configService.saveBoard(id, data);
-  });
-
-  ipcMain.handle('boards:delete', async (event, id) => {
-    return configService.deleteBoard(id);
-  });
-
   // ============ 仓库列表持久化 ============
   ipcMain.handle('repos:get', async () => {
     return configService.getRepos();

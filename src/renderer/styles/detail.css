@@ -380,40 +380,6 @@
   opacity: 1;
 }
 
-.detail-membership {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.detail-membership-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.detail-membership-label {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-  min-width: 56px;
-}
-
-.detail-membership-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex: 1;
-}
-
-.detail-membership-chip {
-  padding: 2px 7px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .detail-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

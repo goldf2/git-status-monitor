@@ -14,8 +14,10 @@
     "scan": "node cli.js scan",
     "status": "node cli.js status",
     "electron": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "pack": "bash scripts/build-mac.sh",
+    "dist": "bash scripts/build-mac.sh",
+    "dist:builder": "electron-builder --mac --publish never",
+    "publish": "electron-builder --mac -p always"
   },
   "build": {
     "appId": "com.git-status-monitor.app",
@@ -37,11 +39,18 @@
       "src/**/*",
       "node_modules/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "goldf2",
+      "repo": "git-status-monitor"
+    },
     "mac": {
       "target": [
+        "dmg",
         "zip"
       ],
-      "icon": "public/icon.icns"
+      "icon": "public/icon.icns",
+      "category": "public.app-category.developer-tools"
     },
     "win": {
       "target": [
@@ -60,9 +69,11 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "electron-updater": "^6.8.9",
     "express": "^4.18.2"
   },
   "devDependencies": {
+    "@electron/packager": "^20.0.2",
     "electron": "^42.5.1",
     "electron-builder": "^26.15.3"
   },
@@ -72,6 +83,6 @@
     "status",
     "dashboard"
   ],
-  "author": "",
+  "author": "goldf2",
   "license": "MIT"
 }

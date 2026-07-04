@@ -12,10 +12,7 @@ const AppState = {
   selectedTags: [],
   searchQuery: '',
   history: [],
-  historyIndex: -1,
-  boards: [],
-  currentBoardId: null,
-  currentBoard: null
+  historyIndex: -1
 };
 
 const App = {
@@ -30,7 +27,6 @@ const App = {
     this.loadSidebarData();
     this.loadGroups();
     this.loadTags();
-    this.loadBoards();
     this.navigateTo(AppState.currentPath, true);
     this.updateStatusBar();
   },
@@ -311,14 +307,6 @@ const App = {
     });
   },
 
-  async loadBoards() {
-    AppState.boards = await window.gitFinder.boards.list();
-    this.renderSidebarBoards();
-  },
-
-  renderSidebarBoards() {
-  },
-
   switchView(view) {
     AppState.currentMode = view;
     this.updateModeUI();
@@ -340,11 +328,7 @@ const App = {
     });
 
     const sortBar = document.getElementById('sort-bar');
-    if (AppState.currentMode === 'board') {
-      sortBar.style.display = 'none';
-    } else {
-      sortBar.style.display = 'flex';
-    }
+    sortBar.style.display = 'flex';
   },
 
   navigateTo(path, replace = false) {
@@ -453,8 +437,6 @@ const App = {
         await this.renderGridView();
       } else if (AppState.currentMode === 'group') {
         await this.renderGroupView();
-      } else if (AppState.currentMode === 'board') {
-        await this.renderBoardView();
       }
     } catch (e) {
       contentArea.innerHTML = `<div style="text-align:center;padding:40px;color:#FF3B30;">加载失败: ${e.message}</div>`;
@@ -593,65 +575,6 @@ const App = {
 
     contentArea.innerHTML = html;
     this.bindCardEvents(contentArea);
-  },
-
-  async renderBoardView() {
-    const contentArea = document.getElementById('content-area');
-
-    if (AppState.boards.length === 0) {
-      contentArea.innerHTML = `
-        <div style="text-align:center;padding:80px;color:#86868b;">
-          <div style="font-size:48px;margin-bottom:16px;opacity:0.4;">⬛</div>
-          <div style="font-size:14px;margin-bottom:16px;">还没有白板</div>
-          <button class="btn btn-primary" onclick="App.createNewBoard()">+ 新建白板</button>
-        </div>
-      `;
-      return;
-    }
-
-    if (!AppState.currentBoardId) {
-      contentArea.innerHTML = `
-        <div style="padding:20px;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:12px;">选择白板</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
-            ${AppState.boards.map(b => `
-              <div class="repo-card" style="cursor:pointer;" onclick="App.openBoard('${b.id}')">
-                <div style="text-align:center;padding:20px 0;">
-                  <div style="font-size:32px;margin-bottom:8px;">⬛</div>
-                  <div style="font-weight:600;">${b.name}</div>
-                  <div style="font-size:11px;color:#86868b;margin-top:4px;">${new Date(b.updatedAt).toLocaleDateString()}</div>
-                </div>
-              </div>
-            `).join('')}
-            <div class="repo-card" style="cursor:pointer;border:1px dashed rgba(0,0,0,0.2);" onclick="App.createNewBoard()">
-              <div style="text-align:center;padding:20px 0;color:#86868b;">
-                <div style="font-size:32px;margin-bottom:8px;">+</div>
-                <div>新建白板</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    const board = await window.gitFinder.boards.get(AppState.currentBoardId);
-    AppState.currentBoard = board;
-    BoardRenderer.render(contentArea, board);
-  },
-
-  async createNewBoard() {
-    const name = prompt('白板名称：');
-    if (!name) return;
-    const board = await window.gitFinder.boards.create(name);
-    AppState.boards = await window.gitFinder.boards.list();
-    AppState.currentBoardId = board.id;
-    this.renderContent();
-  },
-
-  async openBoard(id) {
-    AppState.currentBoardId = id;
-    this.renderContent();
   },
 
   filterRepos(repos) {
