@@ -1,3 +1,17 @@
+// 修复 Electron 从 Dock/Finder 启动时 PATH 不完整的问题
+// 用用户的登录 shell 同步获取完整 PATH(等价于 fix-path 库的核心逻辑)
+// 注意:fix-path v4+ 是纯 ESM,无法在 CJS 中 require,这里直接实现
+try {
+  const { execSync } = require('child_process');
+  const shell = process.env.SHELL || '/bin/zsh';
+  const output = execSync(`"${shell}" -ilc 'echo $PATH'`, { encoding: 'utf8', timeout: 5000 });
+  // 取最后一行包含路径分隔符的输出,过滤 shell 启动时的杂讯
+  const fullPath = output.trim().split('\n').filter(l => l.includes('/') && l.includes(':')).pop();
+  if (fullPath) process.env.PATH = fullPath;
+} catch (e) {
+  console.warn('PATH 修复失败,使用默认 PATH:', e.message);
+}
+
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { registerFilesystemIPC } = require('./src/main/ipc/filesystem');
