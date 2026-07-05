@@ -136,14 +136,14 @@
           <span class="filter-label">筛选方式：</span>
           <label class="filter-checkbox"><input type="checkbox" id="filter-category-check" checked> 分类</label>
           <label class="filter-checkbox"><input type="checkbox" id="filter-tag-check" checked> 标签</label>
-          <label class="filter-checkbox"><input type="checkbox" id="filter-status-check" checked> 状态</label>
           <div class="status-filter-wrapper">
-            <button class="status-filter-btn" id="status-filter-btn" type="button">状态选择 ▼</button>
+            <label class="filter-checkbox"><input type="checkbox" id="filter-status-check" checked> 状态</label>
+            <button class="status-filter-btn" id="status-filter-btn" type="button">选择 ▼</button>
             <div class="status-filter-dropdown" id="status-filter-dropdown">
               <label class="status-filter-item"><input type="checkbox" value="dirty"> 未提交<span class="status-desc">有修改/暂存/未跟踪文件</span></label>
               <label class="status-filter-item"><input type="checkbox" value="ahead"> 未推送<span class="status-desc">有未推送的提交</span></label>
               <label class="status-filter-item"><input type="checkbox" value="behind"> 未拉取<span class="status-desc">远程有新提交</span></label>
-              <label class="status-filter-item"><input type="checkbox" value="clean"> 干净<span class="status-desc">工作区干净,已同步</span></label>
+              <label class="status-filter-item"><input type="checkbox" value="no-remote"> 未添加远程仓库<span class="status-desc">未配置任何远程仓库</span></label>
             </div>
           </div>
           <label class="filter-checkbox"><input type="checkbox" id="filter-name-check" checked> 名称</label>

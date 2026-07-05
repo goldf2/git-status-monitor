@@ -674,7 +674,9 @@
 /* ===== 状态筛选下拉 ===== */
 .status-filter-wrapper {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .status-filter-btn {

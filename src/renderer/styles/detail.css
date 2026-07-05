@@ -340,6 +340,10 @@
   color: var(--status-behind);
 }
 
+.git-stat.no-remote .git-stat-value {
+  color: var(--status-no-remote);
+}
+
 .detail-tags {
   display: flex;
   flex-wrap: wrap;

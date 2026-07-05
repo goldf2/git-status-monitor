@@ -101,6 +101,7 @@
   --status-ahead: #9a6700;
   --status-behind: #8250df;
   --status-none: #848d97;
+  --status-no-remote: #b08800;
 }
 [data-effective-mode="dark"] {
   --status-clean: #4cc26e;
@@ -108,6 +109,7 @@
   --status-ahead: #d29922;
   --status-behind: #a371f7;
   --status-none: #6e7681;
+  --status-no-remote: #e3b341;
 }
 
 /* ============================================================

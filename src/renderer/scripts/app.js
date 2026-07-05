@@ -258,10 +258,8 @@ const App = {
     if (statusBtn && statusDropdown) {
       statusBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const enabled = AppState.filterEnabled.status !== false;
-        if (enabled) {
-          statusDropdown.style.display = statusDropdown.style.display === 'block' ? 'none' : 'block';
-        }
+        // 始终可展开下拉,无论 filterEnabled.status 是否启用
+        statusDropdown.style.display = statusDropdown.style.display === 'block' ? 'none' : 'block';
       });
       statusDropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', () => {
@@ -1105,7 +1103,7 @@ const App = {
         <div class="sidebar-item category-item category-draggable ${active}" data-category="${group.id}" draggable="true" title="${group.name}（可拖拽排序）">
           <span class="category-drag-handle" title="拖拽排序">⋮⋮</span>
           <span class="group-color-dot" style="background:${group.color}"></span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${group.name}</span>
+          <span class="sidebar-item-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="双击重命名">${group.name}</span>
           <span class="badge">${group.repoPaths.length}</span>
           <span class="sidebar-item-remove" data-group-id="${group.id}" title="删除分类">×</span>
         </div>
@@ -1137,6 +1135,35 @@ const App = {
         this.updateFilterBar();
         this.renderContent();
       });
+
+      // 双击名称重命名(仅对有 data-category 且非 all/ungrouped 的项)
+      const nameSpan = item.querySelector('.sidebar-item-name');
+      if (nameSpan) {
+        const groupId = item.dataset.category;
+        if (groupId && groupId !== 'all' && groupId !== 'ungrouped') {
+          nameSpan.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            const group = (AppState.groups.groups || []).find(g => g.id === groupId);
+            if (!group) return;
+            this._startInlineEdit(nameSpan, group.name,
+              async (newName) => {
+                newName = newName.trim();
+                if (!newName || newName === group.name) { this.renderSidebarGroups(); return; }
+                await window.gitFinder.groups.update(groupId, { name: newName });
+                AppState.groups = await window.gitFinder.groups.get();
+                this.renderSidebarGroups();
+                this.updateFilterBar();
+                if (AppState.selectedRepo) {
+                  AppState.selectedRepo.groups = this._findRepoGroups(AppState.selectedRepo.path);
+                  this.updateDetailPanel();
+                }
+                this.renderContent();
+              },
+              () => this.renderSidebarGroups()
+            );
+          });
+        }
+      }
     });
 
     // 分类删除
@@ -1218,14 +1245,55 @@ const App = {
     this.renderSidebarTags();
   },
 
+  // 内联编辑:把 span 替换成 input,回车保存,Esc 取消
+  _startInlineEdit(span, oldText, onSave, onCancel) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = oldText;
+    input.style.cssText = 'flex:1;font-size:12px;border:1px solid var(--accent);border-radius:3px;padding:1px 4px;background:var(--bg-primary);color:var(--text-primary);min-width:0;';
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      if (save) {
+        onSave(input.value);
+      } else if (onCancel) {
+        onCancel();
+      }
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finish(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener('blur', () => finish(true));
+  },
+
   renderSidebarTags() {
     const container = document.getElementById('tags-filter-list');
+    const section = document.getElementById('tags-sidebar-section');
     const tags = AppState.tags.tags;
 
     if (tags.length === 0) {
-      container.innerHTML = '<div style="padding:4px 16px;font-size:11px;color:#86868b;">暂无标签</div>';
+      // 没有标签时隐藏标题,保留添加按钮
+      const title = section?.querySelector('.sidebar-title');
+      if (title) title.style.display = 'none';
+      container.innerHTML = '';
       return;
     }
+
+    // 有标签时显示标题
+    const title = section?.querySelector('.sidebar-title');
+    if (title) title.style.display = '';
 
     container.innerHTML = tags.map(tag => {
       const count = Object.values(AppState.tags.repoTags || {}).filter(ids => ids.includes(tag.id)).length;
@@ -1233,7 +1301,7 @@ const App = {
       return `
         <div class="sidebar-tag-item ${selected ? 'selected' : ''}" data-tag-id="${tag.id}">
           <span class="sidebar-tag-dot" style="background:${tag.color}"></span>
-          <span style="flex:1;">${tag.name}</span>
+          <span class="sidebar-item-name" style="flex:1;" title="双击重命名">${tag.name}</span>
           <span class="sidebar-tag-count">${count}</span>
           <span class="sidebar-item-remove" data-tag-id="${tag.id}" title="删除标签">×</span>
         </div>
@@ -1255,6 +1323,28 @@ const App = {
         this.updateFilterBar();
         this.renderContent();
       });
+
+      // 双击名称重命名
+      const nameSpan = item.querySelector('.sidebar-item-name');
+      if (nameSpan) {
+        nameSpan.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const tagId = item.dataset.tagId;
+          const tag = (AppState.tags.tags || []).find(t => t.id === tagId);
+          if (!tag) return;
+          this._startInlineEdit(nameSpan, tag.name,
+            async (newName) => {
+              newName = newName.trim();
+              if (!newName || newName === tag.name) { this.renderSidebarTags(); return; }
+              await window.gitFinder.tags.update(tagId, { name: newName });
+              AppState.tags = await window.gitFinder.tags.get();
+              this.renderSidebarTags();
+              this.renderContent();
+            },
+            () => this.renderSidebarTags()
+          );
+        });
+      }
     });
 
     // 标签删除
@@ -1338,7 +1428,7 @@ const App = {
         dirty: '未提交',
         ahead: '未推送',
         behind: '未拉取',
-        clean: '干净'
+        'no-remote': '未添加远程仓库'
       };
       const statusChips = AppState.selectedStatuses.map(s => `
         <span class="filter-chip" data-status="${s}">
@@ -1978,8 +2068,8 @@ const App = {
     let filtered = [...repos];
 
     // 名称/README 筛选(分别受 filterEnabled.name 和 filterEnabled.readme 控制)
-    // 仅当至少一个筛选开启时才应用搜索过滤
-    if (AppState.searchQuery && (AppState.filterEnabled.name || AppState.filterEnabled.readme)) {
+    // 有搜索词就执行过滤:未勾选任何搜索维度时结果为空(无维度可匹配)
+    if (AppState.searchQuery) {
       const q = AppState.searchQuery.toLowerCase();
       const nameEnabled = AppState.filterEnabled.name;
       const readmeEnabled = AppState.filterEnabled.readme;
@@ -2010,10 +2100,25 @@ const App = {
     }
 
     // 状态筛选(受 filterEnabled.status 控制)
+    // overallStatus 是互斥值(dirty/ahead/behind/clean),多选之间是 OR
+    // no-remote 是独立维度(基于 hasRemote),和其他状态是 AND
     if (AppState.filterEnabled.status && AppState.selectedStatuses.length > 0) {
+      const selected = AppState.selectedStatuses;
+      const hasNoRemote = selected.includes('no-remote');
+      const otherStatuses = selected.filter(s => s !== 'no-remote');
       filtered = filtered.filter(r => {
         const overall = (r.gitStatus && r.gitStatus.overallStatus) || 'clean';
-        return AppState.selectedStatuses.includes(overall);
+        // 先检查 no-remote(如果选了),必须是未添加远程
+        if (hasNoRemote) {
+          const hasRemote = !!(r.gitStatus && r.gitStatus.hasRemote);
+          if (hasRemote) return false;
+        }
+        // 再检查其他状态(OR)
+        if (otherStatuses.length > 0) {
+          return otherStatuses.includes(overall);
+        }
+        // 只选了 no-remote
+        return true;
       });
     }
 
@@ -2449,6 +2554,10 @@ const App = {
         <div class="git-stat ${status.behind > 0 ? 'behind' : ''}">
           <span class="git-stat-value">${status.behind || 0}</span>
           <span class="git-stat-label">需拉取</span>
+        </div>
+        <div class="git-stat ${!status.hasRemote ? 'no-remote' : ''}">
+          <span class="git-stat-value">${status.hasRemote ? '已添加' : '未添加'}</span>
+          <span class="git-stat-label">远程仓库</span>
         </div>
       </div>
       ${status.lastCommit ? `
