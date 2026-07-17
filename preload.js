@@ -6,6 +6,13 @@ contextBridge.exposeInMainWorld('gitFinder', {
     findGitRepos: (rootPath, options) => ipcRenderer.invoke('fs:findGitRepos', rootPath, options),
     getFileInfo: (path) => ipcRenderer.invoke('fs:getFileInfo', path),
     getReadmePreview: (dirPath) => ipcRenderer.invoke('fs:getReadmePreview', dirPath),
+    listProjectControlFiles: (repoPath) => ipcRenderer.invoke('fs:listProjectControlFiles', repoPath),
+    listMarkdownDocuments: (repoPath) => ipcRenderer.invoke('fs:listMarkdownDocuments', repoPath),
+    readMarkdownDocument: (repoPath, fileName) => ipcRenderer.invoke('fs:readMarkdownDocument', repoPath, fileName),
+    saveMarkdownDocument: (repoPath, fileName, content) => ipcRenderer.invoke('fs:saveMarkdownDocument', repoPath, fileName, content),
+    readProjectControlFile: (repoPath, fileName) => ipcRenderer.invoke('fs:readProjectControlFile', repoPath, fileName),
+    saveProjectControlFile: (repoPath, fileName, content) => ipcRenderer.invoke('fs:saveProjectControlFile', repoPath, fileName, content),
+    syncProjectControlAgentRules: (repoPath, selections) => ipcRenderer.invoke('fs:syncProjectControlAgentRules', repoPath, selections),
     showInFinder: (path) => ipcRenderer.invoke('fs:showInFinder', path),
     openFile: (path) => ipcRenderer.invoke('fs:openFile', path),
     getDefaultPath: () => ipcRenderer.invoke('fs:getDefaultPath'),
@@ -79,15 +86,26 @@ contextBridge.exposeInMainWorld('gitFinder', {
     set: (repos, lastScanAt) => ipcRenderer.invoke('repos:set', repos, lastScanAt),
     merge: (repos) => ipcRenderer.invoke('repos:merge', repos),
     remove: (repoPath) => ipcRenderer.invoke('repos:remove', repoPath),
-    clear: () => ipcRenderer.invoke('repos:clear')
+    clear: () => ipcRenderer.invoke('repos:clear'),
+    // 新增:仓库注册表相关 API
+    getIdByPath: (repoPath) => ipcRenderer.invoke('repos:getIdByPath', repoPath),
+    getPathById: (repoId) => ipcRenderer.invoke('repos:getPathById', repoId),
+    listArchived: () => ipcRenderer.invoke('repos:listArchived'),
+    listActive: () => ipcRenderer.invoke('repos:listActive'),
+    getRegistry: () => ipcRenderer.invoke('repos:getRegistry'),
+    regenerateId: (repoPath) => ipcRenderer.invoke('repos:regenerateId', repoPath),
+    purge: (repoId) => ipcRenderer.invoke('repos:purge', repoId),
+    restore: (repoId) => ipcRenderer.invoke('repos:restore', repoId)
   },
 
   updater: {
     check: () => ipcRenderer.invoke('updater:check'),
     download: () => ipcRenderer.invoke('updater:download'),
     install: () => ipcRenderer.invoke('updater:install'),
+    onAvailable: (cb) => ipcRenderer.on('updater:available', (_e, data) => cb(data)),
     onDownloading: (cb) => ipcRenderer.on('updater:downloading', cb),
     onProgress: (cb) => ipcRenderer.on('updater:progress', (_e, data) => cb(data)),
+    onDownloaded: (cb) => ipcRenderer.on('updater:downloaded', cb),
     onUpToDate: (cb) => ipcRenderer.on('updater:up-to-date', cb),
     onError: (cb) => ipcRenderer.on('updater:error', (_e, msg) => cb(msg))
   },

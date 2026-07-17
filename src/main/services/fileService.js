@@ -202,6 +202,149 @@ class FileService {
     }
   }
 
+  listProjectControlFiles(repoPath) {
+    this._assertProjectDirectory(repoPath);
+    return fs.readdirSync(repoPath, { withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.toLowerCase() !== 'agents.md' && /\.(csv|md)$/i.test(entry.name))
+      .map(entry => {
+        const filePath = path.join(repoPath, entry.name);
+        const stat = fs.statSync(filePath);
+        return {
+          fileName: entry.name,
+          format: path.extname(entry.name).slice(1).toLowerCase(),
+          size: stat.size,
+          modifiedTime: stat.mtime.toISOString()
+        };
+      })
+      .sort((a, b) => a.fileName.localeCompare(b.fileName, 'zh-CN'));
+  }
+
+  listMarkdownDocuments(repoPath) {
+    this._assertProjectDirectory(repoPath);
+    return fs.readdirSync(repoPath, { withFileTypes: true })
+      .filter(entry => entry.isFile() && entry.name.toLowerCase() !== 'agents.md' && /\.md$/i.test(entry.name))
+      .map(entry => {
+        const filePath = path.join(repoPath, entry.name);
+        const stat = fs.statSync(filePath);
+        return {
+          fileName: entry.name,
+          format: 'md',
+          size: stat.size,
+          modifiedTime: stat.mtime.toISOString()
+        };
+      })
+      .sort((a, b) => a.fileName.localeCompare(b.fileName, 'zh-CN'));
+  }
+
+  readMarkdownDocument(repoPath, fileName) {
+    const filePath = this._resolveMarkdownDocumentPath(repoPath, fileName);
+    if (!fs.existsSync(filePath)) {
+      return { fileName, exists: false, content: '', format: 'md' };
+    }
+    const stat = fs.statSync(filePath);
+    if (stat.size > 1024 * 1024) {
+      throw new Error('Markdown 文档超过 1 MB，无法在应用内编辑');
+    }
+    return {
+      fileName,
+      exists: true,
+      content: fs.readFileSync(filePath, 'utf-8'),
+      format: 'md',
+      modifiedTime: stat.mtime.toISOString()
+    };
+  }
+
+  saveMarkdownDocument(repoPath, fileName, content) {
+    if (typeof content !== 'string') throw new Error('Markdown 文档内容必须是文本');
+    if (Buffer.byteLength(content, 'utf-8') > 1024 * 1024) throw new Error('Markdown 文档不能超过 1 MB');
+    const filePath = this._resolveMarkdownDocumentPath(repoPath, fileName);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return this.readMarkdownDocument(repoPath, fileName);
+  }
+
+  readProjectControlFile(repoPath, fileName) {
+    const filePath = this._resolveProjectControlPath(repoPath, fileName);
+    if (!fs.existsSync(filePath)) {
+      return { fileName, exists: false, content: '', format: path.extname(fileName).slice(1).toLowerCase() };
+    }
+    const stat = fs.statSync(filePath);
+    if (stat.size > 1024 * 1024) {
+      throw new Error('控制文件超过 1 MB，无法在应用内编辑');
+    }
+    return {
+      fileName,
+      exists: true,
+      content: fs.readFileSync(filePath, 'utf-8'),
+      format: path.extname(fileName).slice(1).toLowerCase(),
+      modifiedTime: stat.mtime.toISOString()
+    };
+  }
+
+  saveProjectControlFile(repoPath, fileName, content) {
+    if (typeof content !== 'string') throw new Error('控制文件内容必须是文本');
+    if (Buffer.byteLength(content, 'utf-8') > 1024 * 1024) throw new Error('控制文件不能超过 1 MB');
+    const filePath = this._resolveProjectControlPath(repoPath, fileName);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return this.readProjectControlFile(repoPath, fileName);
+  }
+
+  syncProjectControlAgentRules(repoPath, selections) {
+    this._assertProjectDirectory(repoPath);
+    const goalsFile = this._validateProjectControlFileName(selections?.goalsFile || '');
+    const progressFile = this._validateProjectControlFileName(selections?.progressFile || '');
+    const milestoneFile = this._validateProjectControlFileName(selections?.milestoneFile || '');
+    if (!goalsFile && !progressFile && !milestoneFile) throw new Error('请先选择目标、进度或里程碑文件');
+
+    const agentsPath = path.join(repoPath, 'AGENTS.md');
+    const startMarker = '<!-- git-status-monitor:project-control:start -->';
+    const endMarker = '<!-- git-status-monitor:project-control:end -->';
+    const fileLines = [
+      goalsFile ? `- 目标文件：\`${goalsFile}\`` : null,
+      progressFile ? `- 进度文件：\`${progressFile}\`` : null,
+      milestoneFile ? `- 里程碑文件：\`${milestoneFile}\`` : null
+    ].filter(Boolean).join('\n');
+    const block = `${startMarker}\n## 项目控制文件\n\n${fileLines}\n\n完成开发任务后，及时更新上述 CSV 或 Markdown 文件。目标文件记录项目目标、优先级、状态和关键日期；进度文件至少记录日期、当前状态、已完成内容、下一步、阻塞项；达到关键节点时同步更新里程碑。保留现有列和既有记录，不覆盖人工填写内容。\n${endMarker}`;
+    const existing = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf-8') : '# AGENTS.md\n';
+    const markerPattern = new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`);
+    const content = markerPattern.test(existing)
+      ? existing.replace(markerPattern, block)
+      : `${existing.trimEnd()}\n\n${block}\n`;
+    fs.writeFileSync(agentsPath, content, 'utf-8');
+    return { fileName: 'AGENTS.md', updated: true };
+  }
+
+  _assertProjectDirectory(repoPath) {
+    if (!repoPath || !fs.existsSync(repoPath) || !fs.statSync(repoPath).isDirectory()) {
+      throw new Error('项目目录不存在');
+    }
+  }
+
+  _validateProjectControlFileName(fileName) {
+    if (!fileName) return '';
+    if (path.basename(fileName) !== fileName || !/\.(csv|md)$/i.test(fileName)) {
+      throw new Error('控制文件必须是项目根目录下的 CSV 或 Markdown 文件');
+    }
+    return fileName;
+  }
+
+  _resolveProjectControlPath(repoPath, fileName) {
+    this._assertProjectDirectory(repoPath);
+    const validated = this._validateProjectControlFileName(fileName);
+    if (!validated) throw new Error('请选择控制文件');
+    return path.join(path.resolve(repoPath), validated);
+  }
+
+  _resolveMarkdownDocumentPath(repoPath, fileName) {
+    this._assertProjectDirectory(repoPath);
+    if (!fileName || path.basename(fileName) !== fileName || !/\.md$/i.test(fileName)) {
+      throw new Error('文档必须是项目根目录下的 Markdown 文件');
+    }
+    if (fileName.toLowerCase() === 'agents.md') {
+      throw new Error('AGENTS.md 请通过 AI 规则入口维护，不作为普通文档编辑');
+    }
+    return path.join(path.resolve(repoPath), fileName);
+  }
+
   getFileInfo(filePath) {
     try {
       const stat = fs.statSync(filePath);

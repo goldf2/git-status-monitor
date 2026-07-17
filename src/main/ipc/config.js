@@ -118,6 +118,50 @@ function registerConfigIPC() {
   ipcMain.handle('repos:clear', async () => {
     return configService.clearRepos();
   });
+
+  // ============ 仓库注册表(新增)============
+
+  ipcMain.handle('repos:getIdByPath', async (event, repoPath) => {
+    return configService.getIdByPath(repoPath);
+  });
+
+  ipcMain.handle('repos:getPathById', async (event, repoId) => {
+    return configService.getPathById(repoId);
+  });
+
+  ipcMain.handle('repos:listArchived', async () => {
+    return configService.listArchived();
+  });
+
+  ipcMain.handle('repos:listActive', async () => {
+    return configService.listActive();
+  });
+
+  ipcMain.handle('repos:getRegistry', async () => {
+    return configService.getRegistry();
+  });
+
+  // 重新生成仓库 id(应对 hash 冲突或 id 损坏)
+  // 会自动同步迁移 groups/tags 中的关联
+  ipcMain.handle('repos:regenerateId', async (event, repoPath) => {
+    return configService.regenerateRepoId(repoPath);
+  });
+
+  // 彻底删除归档仓库的所有痕迹(registry + groups + tags 中的关联)
+  ipcMain.handle('repos:purge', async (event, repoId) => {
+    return configService.purgeRepo(repoId);
+  });
+
+  // 恢复归档仓库(把 archived 标记为 false,但不重新加入 repos.json,需要重新扫描)
+  ipcMain.handle('repos:restore', async (event, repoId) => {
+    const reg = configService.getRegistry();
+    const entry = reg.repos.find(r => r.id === repoId);
+    if (entry) {
+      entry.archived = false;
+      configService.saveRegistry();
+    }
+    return entry;
+  });
 }
 
 module.exports = { registerConfigIPC };

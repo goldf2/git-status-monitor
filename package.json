@@ -1,6 +1,6 @@
 {
   "name": "git-status-monitor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "GitFinder - 智能Git项目管理器",
   "main": "main.js",
   "productName": "GitFinder",
@@ -16,6 +16,7 @@
     "electron": "electron .",
     "pack": "bash scripts/build-mac.sh",
     "dist": "bash scripts/build-mac.sh",
+    "pack:win": "bash scripts/build-win.sh",
     "dist:builder": "electron-builder --mac --publish never",
     "publish": "electron-builder --mac -p always"
   },

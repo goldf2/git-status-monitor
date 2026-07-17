@@ -11,6 +11,9 @@ __pycache__/
 .DS_Store
 *.log
 
+# 编辑器和 AI 工具的本地配置
+.trae/
+
 # 应用运行时缓存与配置(含敏感本地路径)
 .git-monitor-cache.json
 config/

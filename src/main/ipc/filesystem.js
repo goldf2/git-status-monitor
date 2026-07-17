@@ -19,6 +19,34 @@ function registerFilesystemIPC() {
     return fileService.getReadmePreview(dirPath);
   });
 
+  ipcMain.handle('fs:listProjectControlFiles', async (event, repoPath) => {
+    return fileService.listProjectControlFiles(repoPath);
+  });
+
+  ipcMain.handle('fs:listMarkdownDocuments', async (event, repoPath) => {
+    return fileService.listMarkdownDocuments(repoPath);
+  });
+
+  ipcMain.handle('fs:readMarkdownDocument', async (event, repoPath, fileName) => {
+    return fileService.readMarkdownDocument(repoPath, fileName);
+  });
+
+  ipcMain.handle('fs:saveMarkdownDocument', async (event, repoPath, fileName, content) => {
+    return fileService.saveMarkdownDocument(repoPath, fileName, content);
+  });
+
+  ipcMain.handle('fs:readProjectControlFile', async (event, repoPath, fileName) => {
+    return fileService.readProjectControlFile(repoPath, fileName);
+  });
+
+  ipcMain.handle('fs:saveProjectControlFile', async (event, repoPath, fileName, content) => {
+    return fileService.saveProjectControlFile(repoPath, fileName, content);
+  });
+
+  ipcMain.handle('fs:syncProjectControlAgentRules', async (event, repoPath, selections) => {
+    return fileService.syncProjectControlAgentRules(repoPath, selections);
+  });
+
   ipcMain.handle('fs:showInFinder', async (event, path) => {
     return fileService.showInFinder(path);
   });

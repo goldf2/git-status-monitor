@@ -71,7 +71,9 @@ class GitService {
       untracked: 0,
       hasRemote: false,
       lastCommit: null,
-      remoteUrl: ''
+      remoteUrl: '',
+      upstream: '',
+      upstreamRemote: ''
     };
 
     try {
@@ -102,9 +104,19 @@ class GitService {
       const remoteResult = await this._execGitAsync(repoPath, 'remote', { timeout: 5000 });
       if (remoteResult.success && remoteResult.output) {
         status.hasRemote = true;
-        const remotes = remoteResult.output.split('\n');
-        if (remotes.length > 0) {
-          const urlResult = await this._execGitAsync(repoPath, `remote get-url ${remotes[0]}`, { timeout: 5000 });
+        const upstreamResult = await this._execGitAsync(
+          repoPath,
+          'rev-parse --abbrev-ref --symbolic-full-name @{upstream}',
+          { timeout: 5000 }
+        );
+        if (upstreamResult.success) {
+          status.upstream = upstreamResult.output;
+          status.upstreamRemote = upstreamResult.output.split('/')[0];
+        }
+
+        const remoteName = status.upstreamRemote || remoteResult.output.split('\n')[0];
+        if (remoteName) {
+          const urlResult = await this._execGitAsync(repoPath, `remote get-url ${remoteName}`, { timeout: 5000 });
           if (urlResult.success) {
             status.remoteUrl = urlResult.output;
           }
@@ -115,10 +127,10 @@ class GitService {
         await this._execGitAsync(repoPath, 'fetch', { timeout: 15000 });
       }
 
-      if (status.hasRemote && status.branch) {
+      if (status.upstream) {
         const aheadBehind = await this._execGitAsync(
           repoPath,
-          `rev-list --left-right --count HEAD...origin/${status.branch}`,
+          'rev-list --left-right --count HEAD...@{upstream}',
           { timeout: 5000 }
         );
         if (aheadBehind.success) {

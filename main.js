@@ -1,18 +1,22 @@
 // 修复 Electron 从 Dock/Finder 启动时 PATH 不完整的问题
 // 用用户的登录 shell 同步获取完整 PATH(等价于 fix-path 库的核心逻辑)
 // 注意:fix-path v4+ 是纯 ESM,无法在 CJS 中 require,这里直接实现
-try {
-  const { execSync } = require('child_process');
-  const shell = process.env.SHELL || '/bin/zsh';
-  const output = execSync(`"${shell}" -ilc 'echo $PATH'`, { encoding: 'utf8', timeout: 5000 });
-  // 取最后一行包含路径分隔符的输出,过滤 shell 启动时的杂讯
-  const fullPath = output.trim().split('\n').filter(l => l.includes('/') && l.includes(':')).pop();
-  if (fullPath) process.env.PATH = fullPath;
-} catch (e) {
-  console.warn('PATH 修复失败,使用默认 PATH:', e.message);
+if (process.platform === 'darwin') {
+  try {
+    const { execSync } = require('child_process');
+    const shell = process.env.SHELL || '/bin/zsh';
+    const output = execSync(`"${shell}" -ilc 'echo $PATH'`, { encoding: 'utf8', timeout: 5000 });
+    // 取最后一行包含路径分隔符的输出,过滤 shell 启动时的杂讯
+    const fullPath = output.trim().split('\n').filter(l => l.includes('/') && l.includes(':')).pop();
+    if (fullPath) process.env.PATH = fullPath;
+  } catch (e) {
+    console.warn('PATH 修复失败,使用默认 PATH:', e.message);
+  }
 }
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { registerFilesystemIPC } = require('./src/main/ipc/filesystem');
 const { registerGitIPC } = require('./src/main/ipc/git');
@@ -31,17 +35,42 @@ if (!isDev) {
 }
 
 let mainWindow = null;
+const startupLogPath = path.join(os.tmpdir(), 'git-status-monitor-startup.log');
+
+function writeStartupError(source, error) {
+  const detail = error?.stack || error?.message || String(error);
+  try {
+    fs.appendFileSync(startupLogPath, `[${new Date().toISOString()}] ${source}\n${detail}\n\n`);
+  } catch (_) {}
+}
+
+process.on('uncaughtException', error => writeStartupError('uncaughtException', error));
+process.on('unhandledRejection', error => writeStartupError('unhandledRejection', error));
+
+function isNewerVersion(candidate, current) {
+  const normalize = (version) => String(version || '')
+    .replace(/^v/, '')
+    .split('-')[0]
+    .split('.')
+    .map(part => Number.parseInt(part, 10) || 0);
+  const next = normalize(candidate);
+  const installed = normalize(current);
+  const length = Math.max(next.length, installed.length);
+  for (let i = 0; i < length; i++) {
+    if ((next[i] || 0) > (installed[i] || 0)) return true;
+    if ((next[i] || 0) < (installed[i] || 0)) return false;
+  }
+  return false;
+}
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const windowOptions = {
     width: 1280,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     title: 'GitFinder',
     backgroundColor: '#f6f6f6',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -50,7 +79,14 @@ function createWindow() {
       enableWebGL: true,
       experimentalFeatures: false
     }
-  });
+  };
+
+  if (process.platform === 'darwin') {
+    windowOptions.titleBarStyle = 'hiddenInset';
+    windowOptions.trafficLightPosition = { x: 16, y: 18 };
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
 
@@ -75,6 +111,11 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     if (!mainWindow) return;
     const version = info.version || '新版本';
+    mainWindow.webContents.send('updater:available', {
+      version,
+      releaseNotes: info.releaseNotes || null,
+      releaseDate: info.releaseDate || null
+    });
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '发现新版本',
@@ -99,6 +140,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', () => {
     if (!mainWindow) return;
+    mainWindow.webContents.send('updater:downloaded');
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '更新已下载',
@@ -145,8 +187,10 @@ ipcMain.handle('updater:check', async () => {
   try {
     const result = await autoUpdater.checkForUpdates();
     const updateInfo = result?.updateInfo;
+    const available = isNewerVersion(updateInfo?.version, app.getVersion());
     return {
-      available: !!updateInfo,
+      available,
+      currentVersion: app.getVersion(),
       version: updateInfo?.version || null,
       releaseNotes: updateInfo?.releaseNotes || null,
       releaseDate: updateInfo?.releaseDate || null
@@ -189,6 +233,10 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+}).catch(error => {
+  writeStartupError('app.whenReady', error);
+  dialog.showErrorBox('Git Status Monitor 启动失败', `错误日志: ${startupLogPath}`);
+  app.quit();
 });
 
 app.on('window-all-closed', () => {

@@ -19,7 +19,7 @@ const AppState = {
   groupOrder: null, // 分类拖拽顺序(null=默认,存储 group.id 数组)
   filterEnabled: { category: true, tag: true, status: true, name: true, readme: true },
   showAllAssignments: true, // 详情面板是否显示未选中的分类/标签
-  detailSections: { groups: true, tags: true, readme: true, 'git-actions': true, 'system-actions': true },
+  detailSections: { groups: true, tags: true, readme: true, documents: true, progress: true, 'git-actions': true, 'system-actions': true },
   detailSectionOrder: null, // 区域排列顺序(null=默认)
   sidebarSectionOrder: null, // 侧栏 section 排列顺序(null=默认)
   sidebarCollapsedSections: new Set(), // 侧栏 section 折叠状态(存储 section-id)
@@ -31,7 +31,10 @@ const AppState = {
   isLoading: false,
   themeMode: 'light', // 外观模式:light | dark | auto
   themeScheme: 'github', // 配色方案:github | onedark | dracula | monokai | solarized | nord | muted
-  themeReminder: 'classic' // 提醒色方案:classic | vivid | soft | colorblind
+  themeReminder: 'classic', // 提醒色方案:classic | vivid | soft | colorblind
+  controlSlot: 'progress',
+  documentMode: 'preview',
+  dashboardStats: null
 };
 
 const App = {
@@ -172,6 +175,8 @@ const App = {
       btn.classList.add('active');
       if (AppState.currentMode === 'tree') {
         await this.renderContent();
+      } else if (AppState.currentMode === 'dashboard') {
+        await this.openDashboard(true);
       } else {
         await this.renderGridView(true);
       }
@@ -183,6 +188,11 @@ const App = {
     });
 
     document.getElementById('btn-open-folder')?.addEventListener('click', async () => {
+      await this.openFolderDialog();
+    });
+
+    // 侧栏"位置"区域的"添加目录"按钮
+    document.getElementById('btn-add-tree-root')?.addEventListener('click', async () => {
       await this.openFolderDialog();
     });
 
@@ -376,6 +386,48 @@ const App = {
       this.updateDetailPanel();
     });
 
+    document.querySelectorAll('.progress-format-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.switchControlSlot(btn.dataset.controlSlot));
+    });
+
+    document.getElementById('progress-editor')?.addEventListener('input', () => {
+      const repo = AppState.selectedRepo;
+      if (!repo?.projectControl) return;
+      const slot = AppState.controlSlot;
+      repo.projectControl[slot].content = document.getElementById('progress-editor').value;
+      repo.projectControl[slot].dirty = true;
+      this.updateProgressSaveStatus('未保存');
+      if (repo.projectControl[slot].format === 'csv') {
+        this.renderProjectControlPreview(repo.projectControl[slot].content);
+      }
+    });
+
+    document.getElementById('progress-file-select')?.addEventListener('change', event => {
+      this.selectProjectControlFile(event.target.value);
+    });
+    document.getElementById('control-init-btn')?.addEventListener('click', () => this.initializeSelectedProjectControlFiles());
+    document.getElementById('control-create-csv-btn')?.addEventListener('click', () => this.createProjectControlCsv());
+    document.getElementById('control-add-row-btn')?.addEventListener('click', () => this.addProjectControlRow());
+    document.getElementById('control-ai-rules-btn')?.addEventListener('click', () => this.syncProjectControlAgentRules());
+    document.getElementById('progress-save-btn')?.addEventListener('click', () => this.saveProjectControlFile());
+
+    document.getElementById('document-file-select')?.addEventListener('change', event => {
+      this.selectMarkdownDocument(event.target.value);
+    });
+    document.querySelectorAll('.document-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.switchDocumentMode(btn.dataset.documentMode));
+    });
+    document.getElementById('document-textarea')?.addEventListener('input', () => {
+      const repo = AppState.selectedRepo;
+      if (!repo?.projectDocs?.current) return;
+      repo.projectDocs.current.content = document.getElementById('document-textarea').value;
+      repo.projectDocs.current.dirty = true;
+      this.renderMarkdownDocumentPreview(repo.projectDocs.current.content);
+      this.updateDocumentSaveStatus('未保存');
+    });
+    document.getElementById('document-create-btn')?.addEventListener('click', () => this.createMarkdownDocument());
+    document.getElementById('document-save-btn')?.addEventListener('click', () => this.saveMarkdownDocument());
+
     // 详情面板区域折叠
     document.querySelectorAll('.detail-section.collapsible .section-toggle').forEach(header => {
       header.addEventListener('click', (e) => {
@@ -397,16 +449,6 @@ const App = {
       const color = colorEl ? colorEl.dataset.color : '#007AFF';
       const result = await window.gitFinder.groups.create(name, color);
       AppState.groups = result;
-      // 若有选中的仓库,则将新分类分配给该仓库
-      if (AppState.selectedRepo) {
-        const newGroup = result.groups.find(g => g.name === name);
-        if (newGroup) {
-          await window.gitFinder.groups.addRepo(newGroup.id, AppState.selectedRepo.path);
-          AppState.groups = await window.gitFinder.groups.get();
-          AppState.selectedRepo.groups = this._findRepoGroups(AppState.selectedRepo.path);
-          this.updateDetailPanel();
-        }
-      }
       this.renderSidebarGroups();
       this.renderContent();
       document.getElementById('new-group-modal').style.display = 'none';
@@ -480,6 +522,13 @@ const App = {
     btn.addEventListener('click', () => this._checkForUpdates());
 
     // 监听主进程的更新事件
+    window.gitFinder.updater.onAvailable((info) => {
+      btn.classList.remove('checking');
+      btn.classList.add('has-update');
+      btn.textContent = `新版本 ${info?.version || ''}`.trim();
+      this._showStatusMessage('发现新版本，可按提示下载更新', 'info');
+    });
+
     window.gitFinder.updater.onUpToDate(() => {
       btn.classList.remove('checking');
       btn.textContent = '已是最新';
@@ -496,9 +545,17 @@ const App = {
       btn.textContent = `下载中 ${Math.round(data.percent)}%`;
     });
 
+    window.gitFinder.updater.onDownloaded(() => {
+      btn.classList.remove('checking');
+      btn.classList.add('has-update', 'ready-install');
+      btn.textContent = '重启安装';
+      btn.title = '更新已下载，点击重启并安装';
+    });
+
     window.gitFinder.updater.onError((msg) => {
-      btn.classList.remove('checking', 'has-update');
+      btn.classList.remove('checking', 'has-update', 'ready-install');
       btn.textContent = '检查更新';
+      btn.title = '检查更新';
       this._showStatusMessage(`更新失败: ${msg}`, 'error');
     });
   },
@@ -506,7 +563,13 @@ const App = {
   async _checkForUpdates() {
     const btn = document.getElementById('btn-check-update');
     if (!btn) return;
+    if (btn.classList.contains('ready-install')) {
+      await window.gitFinder.updater.install();
+      return;
+    }
     btn.classList.add('checking');
+    btn.classList.remove('ready-install');
+    btn.title = '检查更新';
     btn.textContent = '检查中...';
     try {
       const result = await window.gitFinder.updater.check();
@@ -1071,6 +1134,8 @@ const App = {
     const container = document.getElementById('groups-list');
     let groups = AppState.groups.groups || [];
     const allRepoCount = AppState.allRepos.length;
+    container.classList.toggle('category-list-disabled', AppState.currentMode === 'tree');
+    this.ensureCategoryDisableGuard(container);
 
     // 按 groupOrder 排序(若有保存的顺序)
     if (AppState.groupOrder && Array.isArray(AppState.groupOrder)) {
@@ -1127,9 +1192,15 @@ const App = {
         if (e.target.classList.contains('category-drag-handle')) return;
         // 点击删除按钮不触发选中
         if (e.target.classList.contains('sidebar-item-remove')) return;
+        if (AppState.currentMode === 'tree') {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         const category = item.dataset.category;
+        const keepDashboard = AppState.currentMode === 'dashboard';
         AppState.selectedCategory = category;
-        AppState.currentMode = 'grid';
+        if (!keepDashboard) AppState.currentMode = 'grid';
         this.updateModeUI();
         this.renderSidebarGroups();
         this.updateFilterBar();
@@ -1228,6 +1299,20 @@ const App = {
         container.insertBefore(draggedItem, target.nextSibling);
       }
     });
+  },
+
+  ensureCategoryDisableGuard(container) {
+    if (!container || container.dataset.disableGuardAttached === '1') return;
+    const blockInTreeMode = (event) => {
+      if (AppState.currentMode !== 'tree') return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+    ['click', 'dblclick', 'mousedown', 'dragstart'].forEach(type => {
+      container.addEventListener(type, blockInTreeMode, true);
+    });
+    container.dataset.disableGuardAttached = '1';
   },
 
   // 保存分类顺序到配置
@@ -1588,9 +1673,11 @@ const App = {
     document.querySelectorAll('.view-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === AppState.currentMode);
     });
+    document.getElementById('btn-dashboard')?.classList.toggle('active', AppState.currentMode === 'dashboard');
     document.querySelectorAll('.sidebar-item[data-mode]').forEach(item => {
       item.classList.toggle('active', item.dataset.mode === AppState.currentMode);
     });
+    document.getElementById('groups-list')?.classList.toggle('category-list-disabled', AppState.currentMode === 'tree');
 
     const sortBar = document.getElementById('sort-bar');
     const filterBar = document.getElementById('filter-bar');
@@ -1600,8 +1687,12 @@ const App = {
       sortBar.style.display = 'flex';
       if (filterBar) filterBar.style.display = 'none';
       if (showFoldersLabel) showFoldersLabel.style.display = '';
+    } else if (AppState.currentMode === 'dashboard') {
+      sortBar.style.display = 'none';
+      if (filterBar) filterBar.style.display = 'flex';
+      if (showFoldersLabel) showFoldersLabel.style.display = 'none';
     } else {
-      // 按仓库显示:有排序栏和筛选栏
+      // 按仓库/项目显示:有排序栏和筛选栏
       sortBar.style.display = 'flex';
       if (filterBar) filterBar.style.display = 'flex';
       if (showFoldersLabel) showFoldersLabel.style.display = 'none';
@@ -1798,6 +1889,11 @@ const App = {
     const contentArea = document.getElementById('content-area');
     const emptyState = document.getElementById('empty-state');
 
+    if (AppState.currentMode === 'dashboard') {
+      await this.openDashboard();
+      return;
+    }
+
     if (!AppState.currentPath) {
       this.showEmptyState();
       return;
@@ -1966,6 +2062,492 @@ const App = {
     }
   },
 
+  async openDashboard(forceRefresh = false) {
+    const contentArea = document.getElementById('content-area');
+    const emptyState = document.getElementById('empty-state');
+    const filterBar = document.getElementById('filter-bar');
+    const sortBar = document.getElementById('sort-bar');
+    AppState.currentMode = 'dashboard';
+    this.updateModeUI();
+    if (emptyState) emptyState.style.display = 'none';
+    if (filterBar) filterBar.style.display = 'flex';
+    if (sortBar) sortBar.style.display = 'none';
+    contentArea.innerHTML = '<div style="text-align:center;padding:40px;color:#86868b;"><div class="loading-spinner" style="margin:0 auto 10px;"></div>加载仪表板...</div>';
+    if (!AppState.allRepos.length || forceRefresh) {
+      await this.ensureDashboardRepos(forceRefresh);
+    }
+    const displayRepos = this._prepareDisplayRepos();
+    await this.renderDashboardContent(displayRepos, contentArea);
+    this.updateStatusBar();
+  },
+
+  async ensureDashboardRepos(forceRefresh = false) {
+    const roots = this._treeRoots || [];
+    if (!forceRefresh && AppState.allRepos.length) return;
+    if (!roots.length) return;
+    const reposArrays = await Promise.all(
+      roots.map(root => window.gitFinder.fs.findGitRepos(root.path, { depth: AppState.scanDepth }).catch(() => []))
+    );
+    const seen = new Set();
+    const repos = [];
+    for (const arr of reposArrays) {
+      for (const repo of arr) {
+        if (seen.has(repo.path)) continue;
+        seen.add(repo.path);
+        repos.push(repo);
+      }
+    }
+    AppState.allRepos = repos;
+    AppState.reposLastScan = Date.now();
+    AppState.enrichedRepos = [];
+    try {
+      await window.gitFinder.repos.set(repos, AppState.reposLastScan);
+    } catch (e) {}
+  },
+
+  async renderDashboardContent(displayRepos, contentArea) {
+    const filtered = this._filterByCategory(displayRepos);
+
+    if (!filtered.length) {
+      contentArea.innerHTML = `
+        <div style="text-align:center;padding:60px;color:#86868b;">
+          <div style="font-size:14px;margin-bottom:6px;">没有可显示的项目</div>
+          <div style="font-size:12px;">请先添加目录并扫描仓库,或调整筛选条件</div>
+        </div>`;
+      return;
+    }
+
+    const stats = await this.collectDashboardStats(filtered);
+    const scopeLabel = this.getSelectedCategoryLabel();
+    contentArea.innerHTML = `
+      <div class="project-dashboard">
+        <div class="project-dashboard-header">
+          <div>
+            <div class="project-dashboard-title">项目仪表板</div>
+            <div class="project-dashboard-subtitle">统计范围：${this.escapeHtml(scopeLabel)} · 进度追踪、延期、阻塞和里程碑情况</div>
+          </div>
+          <div class="project-dashboard-actions">
+            ${stats.missingControlProjects.length ? `<button class="btn btn-tiny" id="dashboard-init-missing-btn" type="button">初始化缺失控制文件</button>` : ''}
+            <div class="project-dashboard-count">${stats.total} 个项目</div>
+          </div>
+        </div>
+        <div class="dashboard-kpi-grid">
+          ${this.getDashboardKpiHtml('控制文件覆盖率', `${stats.initializedPercent}%`, `${stats.initialized}/${stats.total} 个项目已初始化`, stats.initializedPercent)}
+          ${this.getDashboardKpiHtml('进度追踪覆盖率', `${stats.trackedPercent}%`, `${stats.tracked}/${stats.total} 个项目有进度记录`, stats.trackedPercent)}
+          ${this.getDashboardKpiHtml('延期项目', `${stats.delayed}`, `截止日期早于今天且未完成`, stats.delayedPercent, stats.delayed > 0 ? 'warn' : '')}
+          ${this.getDashboardKpiHtml('阻塞项目', `${stats.blocked}`, `进度记录中包含阻塞项`, stats.blockedPercent, stats.blocked > 0 ? 'warn' : '')}
+          ${this.getDashboardKpiHtml('停滞项目', `${stats.stalled}`, `14 天内没有进度更新`, stats.stalledPercent, stats.stalled > 0 ? 'warn' : '')}
+        </div>
+        <div class="dashboard-section-grid">
+          <div class="dashboard-panel">
+            <div class="dashboard-panel-title">项目健康度</div>
+            <div class="dashboard-health-list">
+              ${this.getDashboardHealthRow('未初始化控制文件', stats.missingControlProjects.length, stats.total)}
+              ${this.getDashboardHealthRow('没有进度记录', stats.untrackedProjects.length, stats.total)}
+              ${this.getDashboardHealthRow('停滞项目', stats.stalledProjects.length, stats.total)}
+              ${this.getDashboardHealthRow('延期项目', stats.delayedProjects.length, stats.total)}
+              ${this.getDashboardHealthRow('阻塞项目', stats.blockedProjects.length, stats.total)}
+            </div>
+          </div>
+          <div class="dashboard-panel">
+            <div class="dashboard-panel-title">近期里程碑</div>
+            ${this.getDashboardMilestonesHtml(stats.upcomingMilestones)}
+          </div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="dashboard-panel-title">需要关注</div>
+          ${this.getDashboardAttentionHtml(stats)}
+        </div>
+      </div>
+    `;
+    AppState.dashboardStats = stats;
+    this.bindDashboardEvents(contentArea);
+  },
+
+  async collectDashboardStats(repos) {
+    const savedSelections = await window.gitFinder.config.get('projectControlSelections');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const staleBefore = new Date(today);
+    staleBefore.setDate(staleBefore.getDate() - 14);
+    const projectStats = await Promise.all(repos.map(async repo => {
+      try {
+        const files = await window.gitFinder.fs.listProjectControlFiles(repo.path);
+        const control = await this.loadProjectControl(repo.path, files, savedSelections?.[repo.path]);
+        const model = this.buildProjectControlModel(control);
+        const missingFiles = this.getMissingProjectControlFiles(control);
+        const summary = this.getProjectSummary(model);
+        const dueDates = [...model.goals, ...model.progress, ...model.milestones]
+          .map(item => this.parseProjectDate(item.end || item.endDate || item.due || item.deadline || item.date || item.截止日期 || item.截止))
+          .filter(Boolean);
+        const delayed = [...model.goals, ...model.progress, ...model.milestones].some(item => {
+          const status = item.status || item.状态 || '';
+          if (this.isDoneStatus(status)) return false;
+          const due = this.parseProjectDate(item.end || item.endDate || item.due || item.deadline || item.截止日期 || item.截止);
+          return due && due.getTime() < today.getTime();
+        });
+        const milestones = model.milestones.map(item => {
+          const date = this.parseProjectDate(item.date || item.日期 || item.end || item.deadline || item.截止);
+          const title = item.title || item.milestone || item.里程碑 || item.name || '未命名里程碑';
+          return { repo, title, date, status: item.status || item.状态 || '' };
+        }).filter(item => item.date && item.date.getTime() >= today.getTime());
+        const progressDates = model.progress
+          .map(item => this.parseProjectDate(item.date || item.日期 || item.updated || item.updateDate || item['更新日期'] || item['记录日期']))
+          .filter(Boolean)
+          .sort((a, b) => b - a);
+        const lastProgressDate = progressDates[0] || null;
+        const stalled = model.progress.length > 0 &&
+          summary.progressDone < summary.progressTotal &&
+          (!lastProgressDate || lastProgressDate.getTime() < staleBefore.getTime());
+        return {
+          repo,
+          control,
+          summary,
+          initialized: missingFiles.length === 0,
+          tracked: model.progress.length > 0,
+          delayed,
+          blocked: summary.blockedCount > 0,
+          stalled,
+          lastProgressDate,
+          dueDates,
+          milestones
+        };
+      } catch (error) {
+        return {
+          repo,
+          error,
+          initialized: false,
+          tracked: false,
+          delayed: false,
+          blocked: false,
+          stalled: false,
+          lastProgressDate: null,
+          dueDates: [],
+          milestones: []
+        };
+      }
+    }));
+
+    const total = projectStats.length;
+    const initializedProjects = projectStats.filter(item => item.initialized);
+    const trackedProjects = projectStats.filter(item => item.tracked);
+    const delayedProjects = projectStats.filter(item => item.delayed);
+    const blockedProjects = projectStats.filter(item => item.blocked);
+    const stalledProjects = projectStats.filter(item => item.stalled);
+    const missingControlProjects = projectStats.filter(item => !item.initialized);
+    const untrackedProjects = projectStats.filter(item => !item.tracked);
+    const upcomingMilestones = projectStats
+      .flatMap(item => item.milestones)
+      .sort((a, b) => a.date - b.date)
+      .slice(0, 8);
+
+    return {
+      total,
+      initialized: initializedProjects.length,
+      tracked: trackedProjects.length,
+      delayed: delayedProjects.length,
+      blocked: blockedProjects.length,
+      stalled: stalledProjects.length,
+      initializedPercent: this.percent(initializedProjects.length, total),
+      trackedPercent: this.percent(trackedProjects.length, total),
+      delayedPercent: this.percent(delayedProjects.length, total),
+      blockedPercent: this.percent(blockedProjects.length, total),
+      stalledPercent: this.percent(stalledProjects.length, total),
+      projectStats,
+      missingControlProjects,
+      untrackedProjects,
+      delayedProjects,
+      blockedProjects,
+      stalledProjects,
+      upcomingMilestones
+    };
+  },
+
+  percent(value, total) {
+    if (!total) return 0;
+    return Math.round((value / total) * 100);
+  },
+
+  getSelectedCategoryLabel() {
+    if (!AppState.filterEnabled.category) return '全部项目（分类筛选关闭）';
+    const category = AppState.selectedCategory;
+    if (category === 'all') return '全部项目';
+    if (category === 'ungrouped') return '未分类项目';
+    const group = (AppState.groups?.groups || []).find(item => item.id === category);
+    return group ? `${group.name} 分类` : '全部项目';
+  },
+
+  getDashboardKpiHtml(label, value, subtext, percent, tone = '') {
+    const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+    return `
+      <div class="dashboard-kpi ${tone}">
+        <div class="dashboard-kpi-label">${this.escapeHtml(label)}</div>
+        <div class="dashboard-kpi-value">${this.escapeHtml(value)}</div>
+        <div class="dashboard-kpi-subtext">${this.escapeHtml(subtext)}</div>
+        <div class="dashboard-bar"><span style="width:${safePercent}%"></span></div>
+      </div>
+    `;
+  },
+
+  getDashboardHealthRow(label, value, total) {
+    const percent = this.percent(value, total);
+    return `
+      <div class="dashboard-health-row">
+        <span>${this.escapeHtml(label)}</span>
+        <strong>${value}</strong>
+        <div class="dashboard-bar"><span style="width:${percent}%"></span></div>
+      </div>
+    `;
+  },
+
+  getDashboardMilestonesHtml(items) {
+    if (!items.length) return '<div class="dashboard-empty">暂无未来里程碑</div>';
+    return `
+      <div class="dashboard-list">
+        ${items.map(item => `
+          <div class="dashboard-list-item">
+            <span class="dashboard-list-date">${this.escapeHtml(this.formatDateShort(item.date))}</span>
+            <span class="dashboard-list-main">${this.escapeHtml(item.title)}</span>
+            <span class="dashboard-list-sub">${this.escapeHtml(item.repo.name)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  },
+
+  getDashboardAttentionHtml(stats) {
+    const items = [
+      ...stats.delayedProjects.map(item => ({ type: '延期', repo: item.repo, detail: '存在已过截止日期的未完成事项' })),
+      ...stats.blockedProjects.map(item => ({ type: '阻塞', repo: item.repo, detail: '进度记录中包含阻塞项' })),
+      ...stats.stalledProjects.map(item => ({ type: '停滞', repo: item.repo, detail: item.lastProgressDate ? `上次进度：${this.formatDateShort(item.lastProgressDate)}` : '没有可识别的进度日期' })),
+      ...stats.missingControlProjects.slice(0, 8).map(item => ({ type: '未初始化', repo: item.repo, detail: '缺少目标、进度或里程碑控制文件' })),
+      ...stats.untrackedProjects.slice(0, 8).map(item => ({ type: '未追踪', repo: item.repo, detail: '暂无进度记录' }))
+    ];
+    if (!items.length) return '<div class="dashboard-empty">暂无需要关注的项目</div>';
+    return `
+      <div class="dashboard-attention-list">
+        ${items.slice(0, 16).map(item => `
+          <div class="dashboard-attention-item" data-path="${this.escapeHtml(item.repo.path)}">
+            <span class="dashboard-attention-type">${this.escapeHtml(item.type)}</span>
+            <span class="dashboard-attention-name">${this.escapeHtml(item.repo.name)}</span>
+            <span class="dashboard-attention-detail">${this.escapeHtml(item.detail)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  },
+
+  bindDashboardEvents(container) {
+    container.querySelectorAll('.dashboard-attention-item[data-path]').forEach(item => {
+      item.addEventListener('click', () => this.selectRepo(item.dataset.path));
+    });
+    container.querySelector('#dashboard-init-missing-btn')?.addEventListener('click', () => this.initializeDashboardMissingControlFiles(container));
+  },
+
+  async initializeDashboardMissingControlFiles(container) {
+    const stats = AppState.dashboardStats;
+    const targets = stats?.missingControlProjects || [];
+    if (!targets.length) return;
+    if (!confirm(`将为 ${targets.length} 个项目补齐缺失的控制文件。\n已有控制文件不会被覆盖。是否继续？`)) return;
+
+    const button = container.querySelector('#dashboard-init-missing-btn');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '初始化中...';
+    }
+
+    let createdCount = 0;
+    let failedCount = 0;
+    for (const item of targets) {
+      try {
+        const created = await this.initializeProjectControlFiles(item.repo.path, item.control);
+        createdCount += created.length;
+      } catch (error) {
+        failedCount += 1;
+      }
+    }
+
+    await this.renderDashboardContent(this._prepareDisplayRepos(), document.getElementById('content-area'));
+    this._showStatusMessage(`已创建 ${createdCount} 个控制文件${failedCount ? `，${failedCount} 个项目失败` : ''}`);
+  },
+
+  getProjectCardShell(repo) {
+    const status = repo.gitStatus || {};
+    const overallStatus = status.overallStatus || 'clean';
+    const branch = status.branch || '';
+    const path = this.escapeHtml(repo.path);
+    return `
+      <div class="project-card status-${overallStatus}" data-path="${path}">
+        <div class="project-card-head">
+          <div class="project-card-title">
+            <span class="status-indicator status-${overallStatus}"></span>
+            <span>${this.escapeHtml(repo.name)}</span>
+          </div>
+          <span class="project-branch">${this.escapeHtml(branch || 'main')}</span>
+        </div>
+        <div class="project-card-path" title="${path}">${path}</div>
+        <div class="project-card-loading">
+          <div class="loading-spinner small"></div>
+          <span>读取项目控制文件...</span>
+        </div>
+      </div>
+    `;
+  },
+
+  bindProjectCardEvents(container) {
+    container.querySelectorAll('.project-card').forEach(card => {
+      card.addEventListener('click', (event) => {
+        const initButton = event.target.closest('.project-control-init-btn');
+        if (initButton) {
+          event.stopPropagation();
+          this.initializeProjectCardControlFiles(card.dataset.path);
+          return;
+        }
+        this.selectRepo(card.dataset.path);
+      });
+    });
+  },
+
+  async loadProjectCards(repos) {
+    const savedSelections = await window.gitFinder.config.get('projectControlSelections');
+    await Promise.all(repos.map(async repo => {
+      const card = document.querySelector(`.project-card[data-path="${this.cssEscape(repo.path)}"]`);
+      if (!card) return;
+      try {
+        const files = await window.gitFinder.fs.listProjectControlFiles(repo.path);
+        const control = await this.loadProjectControl(repo.path, files, savedSelections?.[repo.path]);
+        card.innerHTML = this.getProjectCardContent(repo, control);
+      } catch (error) {
+        card.classList.add('unavailable');
+        card.innerHTML = this.getProjectCardUnavailableContent(repo, error);
+      }
+    }));
+  },
+
+  getProjectCardUnavailableContent(repo, error) {
+    const message = this.isMissingProjectPathError(error)
+      ? '项目目录不存在，可能已移动或删除'
+      : '控制文件暂时无法读取';
+    return `
+      <div class="project-card-head">
+        <div class="project-card-title">
+          <span class="status-indicator status-none"></span>
+          <span>${this.escapeHtml(repo.name)}</span>
+        </div>
+        <span class="project-branch">${this.escapeHtml(repo.gitStatus?.branch || 'main')}</span>
+      </div>
+      <div class="project-card-path" title="${this.escapeHtml(repo.path)}">${this.escapeHtml(repo.path)}</div>
+      <div class="project-card-unavailable">
+        <div class="project-mini-label">状态</div>
+        <div>${this.escapeHtml(message)}</div>
+      </div>
+    `;
+  },
+
+  isMissingProjectPathError(error) {
+    const message = String(error?.message || error || '');
+    return /项目目录不存在|no such file|ENOENT|not found/i.test(message);
+  },
+
+  getProjectCardContent(repo, control) {
+    const model = this.buildProjectControlModel(control);
+    const summary = this.getProjectSummary(model);
+    const missingFiles = this.getMissingProjectControlFiles(control).length;
+    return `
+      <div class="project-card-head">
+        <div class="project-card-title">
+          <span class="status-indicator status-${repo.gitStatus?.overallStatus || 'clean'}"></span>
+          <span>${this.escapeHtml(repo.name)}</span>
+        </div>
+        <span class="project-branch">${this.escapeHtml(repo.gitStatus?.branch || 'main')}</span>
+      </div>
+      <div class="project-card-path" title="${this.escapeHtml(repo.path)}">${this.escapeHtml(repo.path)}</div>
+      <div class="project-goal-box">
+        <div class="project-mini-label">目标</div>
+        <div class="project-goal-text">${this.escapeHtml(summary.goalText)}</div>
+      </div>
+      <div class="project-stat-row">
+        <div class="project-stat"><span>${summary.progressDone}/${summary.progressTotal}</span><em>进度</em></div>
+        <div class="project-stat"><span>${summary.milestoneDone}/${summary.milestoneTotal}</span><em>里程碑</em></div>
+        <div class="project-stat ${summary.blockedCount > 0 ? 'warn' : ''}"><span>${summary.blockedCount}</span><em>阻塞</em></div>
+      </div>
+      ${this.renderProjectGantt(model)}
+      <div class="project-card-files">
+        <span>${this.escapeHtml(control.selections.goalsFile)}</span>
+        <span>${this.escapeHtml(control.selections.progressFile)}</span>
+        <span>${this.escapeHtml(control.selections.milestoneFile)}</span>
+      </div>
+      ${missingFiles > 0 ? `
+        <button class="project-control-init-btn" type="button">初始化控制文件</button>
+      ` : ''}
+    `;
+  },
+
+  buildProjectControlModel(control) {
+    return {
+      goals: this.parseProjectRows(control?.goals),
+      progress: this.parseProjectRows(control?.progress),
+      milestones: this.parseProjectRows(control?.milestone)
+    };
+  },
+
+  getProjectSummary(model) {
+    const goal = model.goals[0] || {};
+    const goalText = goal.title || goal.objective || goal.goal || goal.name || goal.description || '未填写项目目标';
+    const progressTotal = model.progress.length;
+    const progressDone = model.progress.filter(item => this.isDoneStatus(item.status)).length;
+    const milestoneTotal = model.milestones.length;
+    const milestoneDone = model.milestones.filter(item => this.isDoneStatus(item.status)).length;
+    const blockedCount = model.progress.filter(item => /阻塞|blocked|block/i.test(item.status || item.blocker || item.blockers || '')).length;
+    return { goalText, progressTotal, progressDone, milestoneTotal, milestoneDone, blockedCount };
+  },
+
+  renderProjectGantt(model) {
+    const rows = [...model.progress, ...model.milestones].map((item, index) => {
+      const start = this.parseProjectDate(item.start || item.startDate || item.date || item.日期 || item['开始']);
+      const end = this.parseProjectDate(item.end || item.endDate || item.due || item.deadline || item.date || item.日期 || item['结束'] || item['截止']);
+      const title = item.title || item.phase || item.stage || item.milestone || item.name || item.阶段 || item.里程碑 || `节点 ${index + 1}`;
+      return { ...item, start, end, title };
+    }).filter(item => item.start || item.end).slice(0, 8);
+
+    if (!rows.length) {
+      return '<div class="project-gantt-empty">暂无可绘制的日期节点</div>';
+    }
+
+    const times = rows.flatMap(item => [item.start, item.end]).filter(Boolean).map(date => date.getTime());
+    const min = Math.min(...times);
+    const max = Math.max(...times);
+    const span = Math.max(max - min, 86400000);
+    const today = Date.now();
+    const todayLeft = today >= min && today <= max ? ((today - min) / span) * 100 : null;
+
+    return `
+      <div class="project-gantt">
+        <div class="project-gantt-scale">
+          <span>${this.formatDateShort(new Date(min))}</span>
+          <span>${this.formatDateShort(new Date(max))}</span>
+        </div>
+        <div class="project-gantt-track">
+          ${todayLeft === null ? '' : `<span class="project-gantt-today" style="left:${todayLeft}%"></span>`}
+          ${rows.map(item => {
+            const start = (item.start || item.end).getTime();
+            const end = (item.end || item.start).getTime();
+            const left = Math.max(0, ((Math.min(start, end) - min) / span) * 100);
+            const width = Math.max(3, (Math.abs(end - start) / span) * 100);
+            const done = this.isDoneStatus(item.status);
+            return `
+              <div class="project-gantt-row">
+                <span class="project-gantt-label" title="${this.escapeHtml(item.title)}">${this.escapeHtml(item.title)}</span>
+                <span class="project-gantt-line">
+                  <span class="project-gantt-bar ${done ? 'done' : ''}" style="left:${left}%;width:${width}%"></span>
+                </span>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  },
+
   // 按选中分类过滤仓库
   _filterByCategory(repos) {
     // 分类筛选(受 filterEnabled.category 控制)
@@ -2050,6 +2632,46 @@ const App = {
     if (readme && readme.description) {
       const readmeEl = card.querySelector('.repo-readme');
       if (readmeEl) readmeEl.textContent = readme.description;
+    }
+
+    this._updateRepoCardGroups(card, groups || []);
+  },
+
+  _updateRepoCardGroups(card, groups) {
+    const listGroups = card.querySelector('.list-repo-groups');
+    if (listGroups) listGroups.remove();
+    if (card.classList.contains('repo-list-item')) {
+      if (!groups.length) return;
+      const groupEl = document.createElement('span');
+      groupEl.className = 'list-repo-groups';
+      groupEl.innerHTML = groups.map(g => `<span class="group-dot" style="background:${g.color}" title="${g.name}"></span>`).join('');
+      card.appendChild(groupEl);
+      return;
+    }
+
+    const existing = card.querySelector('.repo-meta');
+    if (existing) existing.remove();
+    if (!groups.length) return;
+
+    const readmeEl = card.querySelector('.repo-readme');
+    if (!readmeEl) return;
+    const meta = document.createElement('div');
+    meta.className = 'repo-meta';
+    meta.innerHTML = `
+      <div class="repo-meta-row">
+        <span class="repo-meta-label">组:</span>
+        ${groups.map(g => `<span class="repo-meta-chip" style="background:${g.color}20;color:${g.color};border:1px solid ${g.color}40;">📁 ${g.name}</span>`).join('')}
+      </div>
+    `;
+    readmeEl.before(meta);
+  },
+
+  _syncRepoGroupsInState(repoPath, groups) {
+    const update = (repo) => repo.path === repoPath ? { ...repo, groups } : repo;
+    AppState.allRepos = AppState.allRepos.map(update);
+    AppState.enrichedRepos = AppState.enrichedRepos.map(update);
+    if (AppState.selectedRepo?.path === repoPath) {
+      AppState.selectedRepo.groups = groups;
     }
   },
 
@@ -2385,18 +3007,50 @@ const App = {
   },
 
   async selectRepo(repoPath) {
-    const info = await window.gitFinder.fs.getFileInfo(repoPath);
-    const status = await window.gitFinder.git.getStatus(repoPath, { autoFetch: false });
-    const readme = await window.gitFinder.fs.getReadmePreview(repoPath);
-    const tags = await window.gitFinder.tags.getRepoTags(repoPath);
-    const groups = this._findRepoGroups(repoPath);
+    try {
+      const [info, status, readme, tags, controlFiles, markdownDocs, savedSelections, savedDocSelections] = await Promise.all([
+        window.gitFinder.fs.getFileInfo(repoPath),
+        window.gitFinder.git.getStatus(repoPath, { autoFetch: false }),
+        window.gitFinder.fs.getReadmePreview(repoPath),
+        window.gitFinder.tags.getRepoTags(repoPath),
+        window.gitFinder.fs.listProjectControlFiles(repoPath),
+        window.gitFinder.fs.listMarkdownDocuments(repoPath),
+        window.gitFinder.config.get('projectControlSelections'),
+        window.gitFinder.config.get('markdownDocumentSelections')
+      ]);
+      const groups = this._findRepoGroups(repoPath);
+      const projectControl = await this.loadProjectControl(repoPath, controlFiles, savedSelections?.[repoPath]);
+      const projectDocs = await this.loadMarkdownDocuments(repoPath, markdownDocs, savedDocSelections?.[repoPath]);
 
-    AppState.selectedRepo = { ...info, gitStatus: status, readme, tags, groups };
-    // 同步终端工作目录
-    if (typeof Terminal !== 'undefined') {
-      Terminal.setCwd(repoPath);
+      AppState.controlSlot = 'progress';
+      AppState.documentMode = 'preview';
+      AppState.selectedRepo = { ...info, gitStatus: status, readme, tags, groups, projectControl, projectDocs };
+      // 同步终端工作目录
+      if (typeof Terminal !== 'undefined') {
+        Terminal.setCwd(repoPath);
+      }
+      this.updateDetailPanel();
+    } catch (error) {
+      this.showDetailError(
+        this.isMissingProjectPathError(error) ? '项目目录不存在' : '项目读取失败',
+        repoPath,
+        this.isMissingProjectPathError(error) ? '该仓库路径可能已移动或删除，请重新扫描或从仓库列表中清理。' : (error.message || String(error))
+      );
     }
-    this.updateDetailPanel();
+  },
+
+  showDetailError(title, path, message) {
+    const empty = document.getElementById('detail-empty');
+    const content = document.getElementById('detail-content');
+    if (content) content.style.display = 'none';
+    if (!empty) return;
+    empty.style.display = 'flex';
+    empty.innerHTML = `
+      <div class="detail-empty-icon">⚠</div>
+      <div class="detail-empty-text">${this.escapeHtml(title)}</div>
+      <div class="detail-empty-path">${this.escapeHtml(path || '')}</div>
+      <div class="detail-empty-subtext">${this.escapeHtml(message || '')}</div>
+    `;
   },
 
   // 更新详情面板区域可见性
@@ -2527,6 +3181,8 @@ const App = {
       behind: { label: '需拉取', cls: 'behind' }
     };
     const statusInfo = statusMap[overallStatus] || statusMap.clean;
+    const upstreamText = this.escapeHtml(status.upstream || (status.hasRemote ? '未设置跟踪分支' : '未添加远端'));
+    const remoteUrlText = this.escapeHtml(status.remoteUrl || '');
 
     document.getElementById('detail-status').innerHTML = `
       <span class="detail-status-badge ${statusInfo.cls}">${statusInfo.label}</span>
@@ -2539,6 +3195,9 @@ const App = {
       <div class="detail-readme-title">${readme.title || repo.name}</div>
       <div>${readme.description || '暂无描述'}</div>
     `;
+
+    this.renderMarkdownDocuments();
+    this.renderProjectProgress();
 
     const gitInfoEl = document.getElementById('detail-git-info');
     gitInfoEl.innerHTML = `
@@ -2560,6 +3219,13 @@ const App = {
           <span class="git-stat-label">远程仓库</span>
         </div>
       </div>
+      <div class="git-remote-row">
+        <span class="git-info-label">同步远端</span>
+        <div class="git-remote-value">
+          <span>${upstreamText}</span>
+          ${status.remoteUrl ? `<span class="git-remote-url" title="${remoteUrlText}">${remoteUrlText}</span>` : ''}
+        </div>
+      </div>
       ${status.lastCommit ? `
         <div class="detail-last-commit">
           <div class="last-commit-hash">${status.lastCommit.hash}</div>
@@ -2577,7 +3243,7 @@ const App = {
     const repoGroups = repo.groups || [];
     const repoGroupIds = new Set(repoGroups.map(g => g.id));
     const allGroups = AppState.groups.groups || [];
-    const visibleGroups = AppState.showAllAssignments ? allGroups : allGroups.filter(g => repoGroupIds.has(g.id));
+    const visibleGroups = (AppState.showAllAssignments || repoGroupIds.size === 0) ? allGroups : allGroups.filter(g => repoGroupIds.has(g.id));
     if (visibleGroups.length === 0) {
       groupsEl.innerHTML = '<div style="font-size:12px;color:#86868b;">暂无分类,点击下方按钮新建</div>';
     } else {
@@ -2598,6 +3264,7 @@ const App = {
           }
           AppState.groups = await window.gitFinder.groups.get();
           repo.groups = this._findRepoGroups(repo.path);
+          this._syncRepoGroupsInState(repo.path, repo.groups);
           this.updateDetailPanel();
           this.renderSidebarGroups();
           this.renderContent();
@@ -2654,6 +3321,647 @@ const App = {
     return date.toLocaleDateString();
   },
 
+  async loadMarkdownDocuments(repoPath, files, savedFileName) {
+    const defaultFile = savedFileName || files.find(file => /^readme\.md$/i.test(file.fileName))?.fileName || files[0]?.fileName || 'PROJECT_NOTES.md';
+    const current = await window.gitFinder.fs.readMarkdownDocument(repoPath, defaultFile);
+    return { files, selectedFile: defaultFile, current };
+  },
+
+  renderMarkdownDocuments() {
+    const repo = AppState.selectedRepo;
+    const docs = repo?.projectDocs;
+    if (!docs) return;
+
+    const select = document.getElementById('document-file-select');
+    const options = [...(docs.files || [])];
+    if (!options.some(item => item.fileName === docs.selectedFile)) {
+      options.push({ fileName: docs.selectedFile, format: 'md' });
+    }
+    select.innerHTML = options.map(item =>
+      `<option value="${this.escapeHtml(item.fileName)}">${this.escapeHtml(item.fileName)}</option>`
+    ).join('');
+    select.value = docs.selectedFile;
+
+    const current = docs.current;
+    if (!current.exists && !current.content) {
+      current.content = this.getMarkdownDocumentTemplate(repo.name);
+    }
+    document.getElementById('document-textarea').value = current.content || '';
+    document.getElementById('document-new-name').value = docs.selectedFile === 'PROJECT_NOTES.md' ? '' : docs.selectedFile;
+    this.renderMarkdownDocumentPreview(current.content || '');
+    this.switchDocumentMode(AppState.documentMode || 'preview');
+    this.updateDocumentSaveStatus(current.exists ? '已加载' : '保存后创建');
+  },
+
+  async selectMarkdownDocument(fileName) {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectDocs || !fileName) return;
+    const file = await window.gitFinder.fs.readMarkdownDocument(repo.path, fileName);
+    repo.projectDocs.current = file;
+    repo.projectDocs.selectedFile = fileName;
+    await this.persistMarkdownDocumentSelection();
+    this.renderMarkdownDocuments();
+  },
+
+  async persistMarkdownDocumentSelection() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectDocs) return;
+    const all = await window.gitFinder.config.get('markdownDocumentSelections') || {};
+    all[repo.path] = repo.projectDocs.selectedFile;
+    await window.gitFinder.config.set('markdownDocumentSelections', all);
+  },
+
+  async createMarkdownDocument() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectDocs) return;
+    const input = document.getElementById('document-new-name');
+    let fileName = (input.value || '').trim() || 'PROJECT_NOTES.md';
+    if (!/\.md$/i.test(fileName)) fileName += '.md';
+    if (fileName.includes('/') || fileName.includes('\\')) {
+      this.updateDocumentSaveStatus('文件名不能包含路径');
+      return;
+    }
+    try {
+      const saved = await window.gitFinder.fs.saveMarkdownDocument(repo.path, fileName, this.getMarkdownDocumentTemplate(repo.name));
+      repo.projectDocs.files = await window.gitFinder.fs.listMarkdownDocuments(repo.path);
+      repo.projectDocs.selectedFile = fileName;
+      repo.projectDocs.current = { ...saved, dirty: false };
+      await this.persistMarkdownDocumentSelection();
+      this.renderMarkdownDocuments();
+      this.updateDocumentSaveStatus('文档已创建');
+    } catch (error) {
+      this.updateDocumentSaveStatus(`创建失败：${error.message || error}`);
+    }
+  },
+
+  async saveMarkdownDocument() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectDocs?.current) return;
+    const button = document.getElementById('document-save-btn');
+    button.disabled = true;
+    this.updateDocumentSaveStatus('保存中...');
+    try {
+      const current = repo.projectDocs.current;
+      const saved = await window.gitFinder.fs.saveMarkdownDocument(repo.path, current.fileName, current.content || '');
+      repo.projectDocs.current = { ...saved, dirty: false };
+      repo.projectDocs.files = await window.gitFinder.fs.listMarkdownDocuments(repo.path);
+      await this.persistMarkdownDocumentSelection();
+      this.renderMarkdownDocuments();
+      this.updateDocumentSaveStatus('已保存');
+    } catch (error) {
+      this.updateDocumentSaveStatus(`保存失败：${error.message || error}`);
+    } finally {
+      button.disabled = false;
+    }
+  },
+
+  switchDocumentMode(mode) {
+    AppState.documentMode = mode === 'edit' ? 'edit' : 'preview';
+    document.querySelectorAll('.document-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.documentMode === AppState.documentMode);
+    });
+    const preview = document.getElementById('document-preview');
+    const textarea = document.getElementById('document-textarea');
+    if (preview) preview.style.display = AppState.documentMode === 'preview' ? '' : 'none';
+    if (textarea) textarea.style.display = AppState.documentMode === 'edit' ? '' : 'none';
+  },
+
+  renderMarkdownDocumentPreview(content) {
+    const preview = document.getElementById('document-preview');
+    if (!preview) return;
+    preview.innerHTML = this.renderMarkdown(content || '');
+  },
+
+  renderMarkdown(content) {
+    const lines = String(content || '').split(/\r?\n/);
+    let html = '';
+    let inCode = false;
+    let inList = false;
+    let paragraph = [];
+
+    const flushParagraph = () => {
+      if (!paragraph.length) return;
+      html += `<p>${paragraph.map(line => this.escapeInlineMarkdown(line)).join(' ')}</p>`;
+      paragraph = [];
+    };
+    const closeList = () => {
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
+    };
+
+    for (const line of lines) {
+      if (/^```/.test(line.trim())) {
+        flushParagraph();
+        closeList();
+        if (inCode) {
+          html += '</code></pre>';
+        } else {
+          html += '<pre><code>';
+        }
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) {
+        html += `${this.escapeHtml(line)}\n`;
+        continue;
+      }
+      if (!line.trim()) {
+        flushParagraph();
+        closeList();
+        continue;
+      }
+      const heading = line.match(/^(#{1,4})\s+(.+)$/);
+      if (heading) {
+        flushParagraph();
+        closeList();
+        const level = heading[1].length;
+        html += `<h${level}>${this.escapeInlineMarkdown(heading[2])}</h${level}>`;
+        continue;
+      }
+      const list = line.match(/^\s*[-*]\s+(.+)$/);
+      if (list) {
+        flushParagraph();
+        if (!inList) {
+          html += '<ul>';
+          inList = true;
+        }
+        html += `<li>${this.escapeInlineMarkdown(list[1])}</li>`;
+        continue;
+      }
+      paragraph.push(line.trim());
+    }
+    flushParagraph();
+    closeList();
+    if (inCode) html += '</code></pre>';
+    return html || '<div class="document-empty">暂无内容</div>';
+  },
+
+  escapeInlineMarkdown(value) {
+    return this.escapeHtml(value)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  },
+
+  getMarkdownDocumentTemplate(projectName) {
+    const today = new Date().toISOString().slice(0, 10);
+    return `# ${projectName || '项目文档'}\n\n## 摘要\n\n\n## 记录\n\n- ${today}：\n`;
+  },
+
+  updateDocumentSaveStatus(message) {
+    const status = document.getElementById('document-save-status');
+    if (status) status.textContent = message;
+  },
+
+  getProjectControlTemplate(slot, format = 'csv') {
+    const today = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      if (slot === 'goals') {
+        return `目标,优先级,状态,开始日期,截止日期,负责人,备注\n项目目标,高,进行中,${today},,,\n`;
+      }
+      if (slot === 'milestone') {
+        return `日期,里程碑,状态,交付物,备注\n${today},项目启动,进行中,,\n`;
+      }
+      return `日期,阶段,状态,已完成,下一步,阻塞项\n${today},启动,进行中,,,\n`;
+    }
+    if (slot === 'goals') {
+      return `# 项目目标\n\n## 总目标\n\n- 状态：进行中\n- 开始日期：${today}\n- 截止日期：\n- 负责人：\n- 备注：\n`;
+    }
+    if (slot === 'milestone') {
+      return `# 项目里程碑\n\n## ${today}\n\n- 状态：进行中\n- 交付物：\n- 备注：\n`;
+    }
+    return `# 项目进度\n\n## 当前阶段\n\n- 状态：进行中\n- 已完成：\n- 下一步：\n- 阻塞项：无\n`;
+  },
+
+  async loadProjectControl(repoPath, files, saved = {}) {
+    const findFile = pattern => files.find(file => pattern.test(file.fileName))?.fileName;
+    const selections = {
+      goalsFile: saved?.goalsFile || findFile(/goals?|目标/i) || 'PROJECT_GOALS.csv',
+      progressFile: saved?.progressFile || findFile(/progress|进度/i) || 'PROJECT_PROGRESS.csv',
+      milestoneFile: saved?.milestoneFile || findFile(/milestone|里程碑/i) || 'PROJECT_MILESTONES.csv'
+    };
+    const [goals, progress, milestone] = await Promise.all([
+      window.gitFinder.fs.readProjectControlFile(repoPath, selections.goalsFile),
+      window.gitFinder.fs.readProjectControlFile(repoPath, selections.progressFile),
+      window.gitFinder.fs.readProjectControlFile(repoPath, selections.milestoneFile)
+    ]);
+    return { files, selections, goals, progress, milestone };
+  },
+
+  renderProjectProgress() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    this.switchControlSlot(AppState.controlSlot);
+  },
+
+  switchControlSlot(slot) {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl || !repo.projectControl[slot]) return;
+    AppState.controlSlot = slot;
+    document.querySelectorAll('.progress-format-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.controlSlot === slot);
+    });
+
+    const control = repo.projectControl;
+    const file = control[slot];
+    const selectionKey = this.getControlSelectionKey(slot);
+    const selectedName = control.selections[selectionKey];
+    const select = document.getElementById('progress-file-select');
+    const options = [...control.files];
+    if (!options.some(item => item.fileName === selectedName)) {
+      options.push({ fileName: selectedName, format: file.format });
+    }
+    select.innerHTML = options.map(item =>
+      `<option value="${this.escapeHtml(item.fileName)}">${this.escapeHtml(item.fileName)}</option>`
+    ).join('');
+    select.value = selectedName;
+
+    if (!file.exists && !file.content) {
+      file.content = this.getProjectControlTemplate(slot, file.format);
+    }
+    document.getElementById('progress-file-name').textContent = selectedName;
+    document.getElementById('progress-editor').value = file.content || '';
+    const preview = document.getElementById('progress-preview');
+    preview.style.display = file.format === 'csv' ? '' : 'none';
+    const addRowBtn = document.getElementById('control-add-row-btn');
+    if (addRowBtn) addRowBtn.style.display = file.format === 'csv' ? '' : 'none';
+    if (file.format === 'csv') this.renderProjectControlPreview(file.content || '');
+    this.updateProgressSaveStatus(file.exists ? '已加载' : '保存后创建');
+  },
+
+  async selectProjectControlFile(fileName) {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl || !fileName) return;
+    const slot = AppState.controlSlot;
+    const selectionKey = this.getControlSelectionKey(slot);
+    const file = await window.gitFinder.fs.readProjectControlFile(repo.path, fileName);
+    repo.projectControl[slot] = file;
+    repo.projectControl.selections[selectionKey] = fileName;
+    await this.persistProjectControlSelections();
+    this.switchControlSlot(slot);
+  },
+
+  async persistProjectControlSelections() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    const all = await window.gitFinder.config.get('projectControlSelections') || {};
+    all[repo.path] = { ...repo.projectControl.selections };
+    await window.gitFinder.config.set('projectControlSelections', all);
+  },
+
+  getProjectControlDefinitions() {
+    return [
+      { slot: 'goals', key: 'goalsFile', fileName: 'PROJECT_GOALS.csv' },
+      { slot: 'progress', key: 'progressFile', fileName: 'PROJECT_PROGRESS.csv' },
+      { slot: 'milestone', key: 'milestoneFile', fileName: 'PROJECT_MILESTONES.csv' }
+    ];
+  },
+
+  getMissingProjectControlFiles(control) {
+    if (!control) return this.getProjectControlDefinitions();
+    return this.getProjectControlDefinitions().filter(def => {
+      const fileName = control.selections?.[def.key] || def.fileName;
+      const file = control[def.slot];
+      return !file?.exists && !(control.files || []).some(item => item.fileName === fileName);
+    });
+  },
+
+  async initializeProjectControlFiles(repoPath, control = null) {
+    const files = control?.files || await window.gitFinder.fs.listProjectControlFiles(repoPath);
+    const existingNames = new Set(files.map(file => file.fileName));
+    const definitions = this.getProjectControlDefinitions();
+    const created = [];
+
+    for (const def of definitions) {
+      const selectedName = control?.selections?.[def.key] || def.fileName;
+      if (existingNames.has(selectedName)) continue;
+      await window.gitFinder.fs.saveProjectControlFile(
+        repoPath,
+        selectedName,
+        this.getProjectControlTemplate(def.slot, 'csv')
+      );
+      existingNames.add(selectedName);
+      created.push(selectedName);
+    }
+
+    return created;
+  },
+
+  async initializeSelectedProjectControlFiles() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    this.updateProgressSaveStatus('初始化中...');
+    try {
+      const created = await this.initializeProjectControlFiles(repo.path, repo.projectControl);
+      const files = await window.gitFinder.fs.listProjectControlFiles(repo.path);
+      repo.projectControl = await this.loadProjectControl(repo.path, files, repo.projectControl.selections);
+      await this.persistProjectControlSelections();
+      this.switchControlSlot(AppState.controlSlot);
+      this.updateProgressSaveStatus(created.length ? `已创建 ${created.length} 个控制文件` : '控制文件已存在');
+    } catch (error) {
+      this.updateProgressSaveStatus(`初始化失败：${error.message || error}`);
+    }
+  },
+
+  async initializeProjectCardControlFiles(repoPath) {
+    const card = document.querySelector(`.project-card[data-path="${this.cssEscape(repoPath)}"]`);
+    if (!card) return;
+    const button = card.querySelector('.project-control-init-btn');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '初始化中...';
+    }
+    try {
+      const savedSelections = await window.gitFinder.config.get('projectControlSelections');
+      const files = await window.gitFinder.fs.listProjectControlFiles(repoPath);
+      const control = await this.loadProjectControl(repoPath, files, savedSelections?.[repoPath]);
+      await this.initializeProjectControlFiles(repoPath, control);
+      const nextFiles = await window.gitFinder.fs.listProjectControlFiles(repoPath);
+      const nextControl = await this.loadProjectControl(repoPath, nextFiles, control.selections);
+      const repo = (AppState.enrichedRepos.length ? AppState.enrichedRepos : AppState.allRepos).find(item => item.path === repoPath) || { path: repoPath, name: repoPath.split(/[\\/]/).pop() };
+      card.classList.remove('unavailable');
+      card.innerHTML = this.getProjectCardContent(repo, nextControl);
+    } catch (error) {
+      card.classList.add('unavailable');
+      const repo = (AppState.enrichedRepos.length ? AppState.enrichedRepos : AppState.allRepos).find(item => item.path === repoPath) || { path: repoPath, name: repoPath.split(/[\\/]/).pop() };
+      card.innerHTML = this.getProjectCardUnavailableContent(repo, error);
+    }
+  },
+
+  async createProjectControlCsv() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    const slot = AppState.controlSlot;
+    const fileName = this.getDefaultControlFileName(slot);
+    const existing = repo.projectControl.files.find(file => file.fileName === fileName);
+    if (!existing) {
+      await window.gitFinder.fs.saveProjectControlFile(
+        repo.path,
+        fileName,
+        this.getProjectControlTemplate(slot, 'csv')
+      );
+      repo.projectControl.files = await window.gitFinder.fs.listProjectControlFiles(repo.path);
+    }
+    await this.selectProjectControlFile(fileName);
+    this.updateProgressSaveStatus(existing ? '已选择现有文件' : 'CSV 已创建');
+  },
+
+  parseCsv(content) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let quoted = false;
+
+    for (let i = 0; i < content.length; i++) {
+      const char = content[i];
+      if (char === '"') {
+        if (quoted && content[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (char === ',' && !quoted) {
+        row.push(field);
+        field = '';
+      } else if ((char === '\n' || char === '\r') && !quoted) {
+        if (char === '\r' && content[i + 1] === '\n') i++;
+        row.push(field);
+        if (row.some(value => value.trim())) rows.push(row);
+        row = [];
+        field = '';
+      } else {
+        field += char;
+      }
+    }
+    row.push(field);
+    if (row.some(value => value.trim())) rows.push(row);
+    return rows;
+  },
+
+  serializeCsv(rows) {
+    return rows.map(row => row.map(value => {
+      const text = String(value || '');
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }).join(',')).join('\n') + '\n';
+  },
+
+  renderProjectControlPreview(content) {
+    const preview = document.getElementById('progress-preview');
+    const rows = this.parseCsv(content);
+    if (rows.length === 0) {
+      preview.innerHTML = '<div class="progress-empty">暂无记录</div>';
+      return;
+    }
+
+    const [headers, ...items] = rows;
+    preview.innerHTML = `
+      <div class="milestone-table-wrap">
+        <table class="milestone-table structured-control-table">
+          <thead><tr>${headers.map(value => `<th>${this.escapeHtml(value)}</th>`).join('')}</tr></thead>
+          <tbody>${items.map((row, rowIndex) => `
+            <tr>${headers.map((_, index) => `
+              <td>
+                <input class="control-cell-input" data-row="${rowIndex}" data-col="${index}" value="${this.escapeHtml(row[index] || '')}">
+              </td>
+            `).join('')}</tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    `;
+    preview.querySelectorAll('.control-cell-input').forEach(input => {
+      input.addEventListener('input', () => this.updateProjectControlFromStructuredTable());
+    });
+  },
+
+  updateProjectControlFromStructuredTable() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    const slot = AppState.controlSlot;
+    const file = repo.projectControl[slot];
+    if (!file || file.format !== 'csv') return;
+
+    const rows = this.parseCsv(file.content || '');
+    if (!rows.length) return;
+    const headers = rows[0];
+    const body = [];
+    document.querySelectorAll('#progress-preview tbody tr').forEach(tr => {
+      const row = [];
+      tr.querySelectorAll('.control-cell-input').forEach(input => {
+        row[Number(input.dataset.col)] = input.value;
+      });
+      while (row.length < headers.length) row.push('');
+      body.push(row);
+    });
+    file.content = this.serializeCsv([headers, ...body]);
+    file.dirty = true;
+    document.getElementById('progress-editor').value = file.content;
+    this.updateProgressSaveStatus('未保存');
+  },
+
+  addProjectControlRow() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    const slot = AppState.controlSlot;
+    const file = repo.projectControl[slot];
+    if (!file || file.format !== 'csv') return;
+    const rows = this.parseCsv(file.content || this.getProjectControlTemplate(slot, 'csv'));
+    if (!rows.length) return;
+    const emptyRow = rows[0].map(() => '');
+    rows.push(emptyRow);
+    file.content = this.serializeCsv(rows);
+    file.dirty = true;
+    document.getElementById('progress-editor').value = file.content;
+    this.renderProjectControlPreview(file.content);
+    this.updateProgressSaveStatus('未保存');
+  },
+
+  async saveProjectControlFile() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    const slot = AppState.controlSlot;
+    const file = repo.projectControl[slot];
+    const button = document.getElementById('progress-save-btn');
+    button.disabled = true;
+    this.updateProgressSaveStatus('保存中...');
+    try {
+      const saved = await window.gitFinder.fs.saveProjectControlFile(repo.path, file.fileName, file.content || '');
+      repo.projectControl[slot] = { ...saved, dirty: false };
+      repo.projectControl.files = await window.gitFinder.fs.listProjectControlFiles(repo.path);
+      await this.persistProjectControlSelections();
+      this.updateProgressSaveStatus('已保存');
+    } catch (error) {
+      this.updateProgressSaveStatus(`保存失败：${error.message || error}`);
+    } finally {
+      button.disabled = false;
+    }
+  },
+
+  async syncProjectControlAgentRules() {
+    const repo = AppState.selectedRepo;
+    if (!repo?.projectControl) return;
+    this.updateProgressSaveStatus('正在同步 AI 规则...');
+    try {
+      await window.gitFinder.fs.syncProjectControlAgentRules(repo.path, repo.projectControl.selections);
+      this.updateProgressSaveStatus('AGENTS.md 已更新');
+    } catch (error) {
+      this.updateProgressSaveStatus(`规则同步失败：${error.message || error}`);
+    }
+  },
+
+  updateProgressSaveStatus(message) {
+    const status = document.getElementById('progress-save-status');
+    if (status) status.textContent = message;
+  },
+
+  getControlSelectionKey(slot) {
+    if (slot === 'goals') return 'goalsFile';
+    if (slot === 'milestone') return 'milestoneFile';
+    return 'progressFile';
+  },
+
+  getDefaultControlFileName(slot) {
+    if (slot === 'goals') return 'PROJECT_GOALS.csv';
+    if (slot === 'milestone') return 'PROJECT_MILESTONES.csv';
+    return 'PROJECT_PROGRESS.csv';
+  },
+
+  normalizeProjectHeader(value) {
+    const text = String(value || '').trim().toLowerCase();
+    const map = {
+      '目标': 'title',
+      '项目目标': 'title',
+      '名称': 'name',
+      '任务': 'title',
+      '阶段': 'phase',
+      '里程碑': 'milestone',
+      '状态': 'status',
+      '日期': 'date',
+      '开始': 'start',
+      '开始日期': 'start',
+      '结束': 'end',
+      '截止': 'end',
+      '截止日期': 'end',
+      '完成日期': 'end',
+      '阻塞项': 'blocker',
+      '阻塞': 'blocker',
+      '备注': 'description',
+      '说明': 'description',
+      '已完成': 'done',
+      '下一步': 'next'
+    };
+    return map[text] || text.replace(/\s+/g, '');
+  },
+
+  parseProjectRows(file) {
+    if (!file?.content) return [];
+    if (file.format === 'csv') {
+      const rows = this.parseCsv(file.content);
+      if (rows.length < 2) return [];
+      const headers = rows[0].map(header => this.normalizeProjectHeader(header));
+      return rows.slice(1).map(row => {
+        const item = {};
+        headers.forEach((header, index) => {
+          item[header] = (row[index] || '').trim();
+        });
+        return item;
+      }).filter(item => Object.values(item).some(Boolean));
+    }
+    const sections = [];
+    let current = null;
+    for (const rawLine of file.content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      const heading = line.match(/^#{1,3}\s+(.+)/);
+      if (heading) {
+        current = { title: heading[1].trim() };
+        sections.push(current);
+        continue;
+      }
+      const pair = line.match(/^[-*]\s*([^：:]+)[：:]\s*(.*)$/);
+      if (pair && current) {
+        current[this.normalizeProjectHeader(pair[1])] = pair[2].trim();
+      }
+    }
+    return sections;
+  },
+
+  parseProjectDate(value) {
+    if (!value) return null;
+    const text = String(value).trim();
+    const match = text.match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  },
+
+  formatDateShort(date) {
+    if (!date) return '';
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  },
+
+  isDoneStatus(status) {
+    return /完成|已完成|done|closed|complete/i.test(status || '');
+  },
+
+  cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return window.CSS.escape(value);
+    }
+    return String(value).replace(/["\\]/g, '\\$&');
+  },
+
+  escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    })[char]);
+  },
+
   updateStatusBar() {
     const left = document.getElementById('status-left');
     const right = document.getElementById('status-right');
@@ -2661,7 +3969,11 @@ const App = {
     let leftText = '';
     let rightText = '';
 
-    if (AppState.currentMode === 'grid') {
+    if (AppState.currentMode === 'dashboard') {
+      const stats = AppState.dashboardStats;
+      leftText = `项目仪表板：${this.getSelectedCategoryLabel()}`;
+      rightText = stats ? `${stats.total} 个项目 · 延期 ${stats.delayed} · 阻塞 ${stats.blocked} · 停滞 ${stats.stalled}` : '';
+    } else if (AppState.currentMode === 'grid') {
       const total = AppState.allRepos.length;
       const dirty = AppState.allRepos.filter(r => r.gitStatus?.overallStatus === 'dirty').length;
       const ahead = AppState.allRepos.filter(r => r.gitStatus?.overallStatus === 'ahead').length;

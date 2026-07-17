@@ -81,6 +81,11 @@ body {
   background: var(--bg-active);
 }
 
+.nav-btn.active {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
 .current-path {
   margin-left: 8px;
   font-size: 13px;
@@ -172,10 +177,12 @@ body {
   background: var(--bg-input);
   border-radius: 7px;
   padding: 2px;
+  margin-left: 8px;
+  flex-shrink: 0;
 }
 
 .view-btn {
-  width: 28px;
+  min-width: 72px;
   height: 26px;
   border: none;
   background: transparent;
@@ -185,6 +192,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: inherit;
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 
@@ -195,7 +206,25 @@ body {
 .view-btn.active {
   background: var(--bg-primary);
   color: var(--text-primary);
+  font-weight: 600;
   box-shadow: 0 1px 3px var(--shadow-overlay);
+}
+
+.app-version-badge {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.app-version-badge:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
 }
 
 .main-container {
@@ -290,6 +319,10 @@ body {
 .status-update-btn.has-update {
   color: var(--status-ahead, #d29922);
   font-weight: 500;
+}
+
+.status-update-btn.ready-install {
+  color: var(--status-clean, #2da44e);
 }
 
 .btn {

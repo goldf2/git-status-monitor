@@ -29,6 +29,17 @@
             <polyline points="18 15 12 9 6 15"></polyline>
           </svg>
         </button>
+        <div class="view-switcher">
+          <button class="view-btn active" data-view="tree" title="目录模式：按文件夹浏览">
+            <span>目录模式</span>
+          </button>
+          <button class="view-btn" data-view="grid" title="仓库模式：聚合所有 Git 仓库">
+            <span>仓库模式</span>
+          </button>
+          <button class="view-btn" id="btn-dashboard" data-view="dashboard" title="项目仪表板：查看总体统计">
+            <span>仪表板</span>
+          </button>
+        </div>
         <div class="current-path" id="current-path"></div>
       </div>
       <div class="toolbar-center">
@@ -39,32 +50,9 @@
           </svg>
           <input type="text" id="search-input" placeholder="搜索项目...">
         </div>
-        <button class="btn" id="btn-scan" title="扫描指定目录下的 Git 仓库">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle;">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          扫描
-        </button>
       </div>
       <div class="toolbar-right">
-        <div class="view-switcher">
-          <button class="view-btn active" data-view="tree" title="按文件夹显示(访达式浏览)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="6" y1="12" x2="21" y2="12"></line>
-              <line x1="6" y1="18" x2="15" y2="18"></line>
-            </svg>
-          </button>
-          <button class="view-btn" data-view="grid" title="按仓库显示(聚合所有 Git 仓库)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-          </button>
-        </div>
+        <span id="app-version" class="app-version-badge" title="点击检查更新">v-</span>
         <button class="nav-btn" id="btn-theme" title="主题配色">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="5"></circle>
@@ -106,6 +94,10 @@
             <span class="sidebar-toggle" title="折叠/展开">▼</span>
           </div>
           <div class="sidebar-tree-container" id="sidebar-tree"></div>
+          <div class="sidebar-tree-buttons">
+            <button class="sidebar-add-btn" id="btn-add-tree-root" title="添加一个根目录到位置列表">+ 添加目录</button>
+            <button class="sidebar-add-btn" id="btn-scan" title="扫描指定目录下的 Git 仓库">+ 扫描仓库</button>
+          </div>
         </div>
 
         <div class="sidebar-section" id="groups-sidebar-section" data-section-id="groups">
@@ -230,6 +222,56 @@
             <h4 class="section-toggle" data-target="detail-readme">README <span class="toggle-arrow">▼</span></h4>
             <div class="detail-readme" id="detail-readme"></div>
           </div>
+          <div class="detail-section collapsible" data-section-id="documents">
+            <h4 class="section-toggle" data-target="detail-documents">文档 <span class="toggle-arrow">▼</span></h4>
+            <div class="document-editor" id="detail-documents">
+              <div class="document-toolbar">
+                <select class="document-select" id="document-file-select" aria-label="选择 Markdown 文档"></select>
+                <div class="document-mode-switch" role="tablist" aria-label="文档模式">
+                  <button class="document-mode-btn active" data-document-mode="preview">预览</button>
+                  <button class="document-mode-btn" data-document-mode="edit">编辑</button>
+                </div>
+              </div>
+              <div class="document-file-row">
+                <input class="document-file-input" id="document-new-name" placeholder="PROJECT_NOTES.md">
+                <button class="btn btn-tiny" id="document-create-btn">新建</button>
+              </div>
+              <div class="document-preview markdown-preview" id="document-preview"></div>
+              <textarea class="document-textarea" id="document-textarea" spellcheck="false" style="display:none;"></textarea>
+              <div class="document-footer">
+                <span class="document-save-status" id="document-save-status"></span>
+                <button class="btn btn-primary progress-save-btn" id="document-save-btn">保存</button>
+              </div>
+            </div>
+          </div>
+          <div class="detail-section collapsible" data-section-id="progress">
+            <h4 class="section-toggle" data-target="detail-progress">项目进度 <span class="toggle-arrow">▼</span></h4>
+            <div class="project-progress" id="detail-progress">
+              <div class="progress-toolbar">
+                <div class="progress-format-switch" role="tablist" aria-label="进度文件格式">
+                  <button class="progress-format-btn" data-control-slot="goals">目标</button>
+                  <button class="progress-format-btn active" data-control-slot="progress">进度</button>
+                  <button class="progress-format-btn" data-control-slot="milestone">里程碑</button>
+                </div>
+                <span class="progress-file-name" id="progress-file-name"></span>
+              </div>
+              <div class="control-file-row">
+                <select class="control-file-select" id="progress-file-select" aria-label="选择项目控制文件"></select>
+                <button class="btn btn-tiny" id="control-init-btn">初始化</button>
+                <button class="btn btn-tiny" id="control-create-csv-btn">新建 CSV</button>
+              </div>
+              <textarea class="progress-editor" id="progress-editor" spellcheck="false"></textarea>
+              <div class="progress-preview" id="progress-preview" style="display:none;"></div>
+              <div class="progress-footer">
+                <span class="progress-save-status" id="progress-save-status"></span>
+                <div class="progress-footer-actions">
+                  <button class="btn btn-tiny" id="control-add-row-btn" title="在结构化表格中添加一行">添加行</button>
+                  <button class="btn btn-tiny" id="control-ai-rules-btn" title="将当前文件写入项目 AGENTS.md，供开发 AI 及时更新">AI 规则</button>
+                  <button class="btn btn-primary progress-save-btn" id="progress-save-btn">保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="detail-section detail-actions-section collapsible" data-section-id="git-actions">
             <h4 class="section-toggle" data-target="git-actions-content">Git 操作 <span class="toggle-arrow">▼</span></h4>
             <div class="detail-actions" id="git-actions-content">
@@ -272,7 +314,6 @@
       <div class="status-left" id="status-left">就绪</div>
       <div class="status-center" id="status-center"></div>
       <div class="status-right" id="status-right">
-        <span id="app-version" class="status-version" title="点击检查更新">v-</span>
         <button class="status-update-btn" id="btn-check-update" title="检查更新">检查更新</button>
       </div>
     </footer>

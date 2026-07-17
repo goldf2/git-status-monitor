@@ -142,6 +142,30 @@
   color: var(--accent-primary);
 }
 
+.category-list-disabled {
+  opacity: 0.38;
+  filter: grayscale(1);
+}
+
+.category-list-disabled .category-item {
+  cursor: default;
+}
+
+.category-list-disabled .category-item:hover {
+  background: transparent;
+}
+
+.category-list-disabled .category-item.active {
+  background: transparent;
+  color: var(--text-secondary);
+  border-left-color: transparent;
+}
+
+.category-list-disabled .category-item .badge {
+  background: var(--bg-input);
+  color: var(--text-tertiary);
+}
+
 .sidebar-group-header {
   display: flex;
   align-items: center;
@@ -434,6 +458,19 @@
 .sidebar-tree-section .sidebar-add-btn {
   flex-shrink: 0;
   margin-bottom: 4px;
+}
+
+.sidebar-tree-buttons {
+  display: flex;
+  gap: 4px;
+  margin: 4px 12px 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-tree-buttons .sidebar-add-btn {
+  flex: 1;
+  margin: 0;
+  width: auto;
 }
 
 .tree-node {
