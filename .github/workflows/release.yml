@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      publish_unsigned_windows:
+        description: '将通过验收的未签名 Windows x64 产物发布为预发布测试版'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -201,8 +207,14 @@ jobs:
           if ($metadata.version -ne $install.version -or $metadata.architecture -ne 'x64') {
             throw 'Windows verification reports do not match the build identity'
           }
+          $version = [string]$metadata.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'Invalid Windows build version'
+          }
           $signed = ($metadata.signatureStatus -eq 'Valid' -and $install.signatureStatus -eq 'Valid')
           $channel = if ($signed) { 'signed-release-candidate' } else { 'unsigned-test-build' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "test_tag=windows-v$version-test1" >> $env:GITHUB_OUTPUT
           "signed=$($signed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "channel=$channel" >> $env:GITHUB_OUTPUT
           if (-not $signed) {
@@ -215,6 +227,33 @@ jobs:
           name: GitFinder-Windows-x64-${{ steps.release_state.outputs.channel }}
           if-no-files-found: error
           path: |
+            dist/GitFinder-*-x64-win-setup.exe
+            dist/GitFinder-*-x64-win.zip
+            dist/latest.yml
+            dist/SHA256SUMS-windows.txt
+            dist/windows-release-metadata.json
+            dist/windows-runtime-verification.json
+            dist/windows-install-verification.json
+
+      - name: Publish explicitly requested unsigned Windows prerelease
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_unsigned_windows == true && steps.release_state.outputs.signed == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_state.outputs.test_tag }}
+          target_commitish: ${{ github.sha }}
+          name: GitFinder v${{ steps.release_state.outputs.version }} Windows x64 未签名测试版
+          draft: false
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            这是由真正的 windows-latest runner 构建并完成验收的 Windows x64 测试版。
+
+            未配置可验证的 Authenticode 代码签名，因此它不是稳定正式版。Windows SmartScreen 可能显示风险提示。
+
+            验收覆盖完整源码测试、项目配置与 Git 检测、复制/移动/系统回收站、免安装默认启动、NSIS 静默安装、安装后默认启动和卸载。请同时下载 SHA-256 与验证报告核对产物。
+
+            Actions run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: |
             dist/GitFinder-*-x64-win-setup.exe
             dist/GitFinder-*-x64-win.zip
             dist/latest.yml

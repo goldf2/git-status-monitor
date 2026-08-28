@@ -36,6 +36,19 @@ test('Windows CI 在 windows-latest 执行运行时、安装、启动和卸载�
   assert.match(acceptance, /Get-FileHash/);
 });
 
+test('Windows 未签名测试版只有在手动明确选择后才发布为预发布', () => {
+  const workflow = fs.readFileSync(path.join(projectRoot, '.github/workflows/release.yml'), 'utf8');
+  assert.match(workflow, /publish_unsigned_windows:/);
+  assert.match(workflow, /type:\s*boolean/);
+  assert.match(workflow, /default:\s*false/);
+  assert.match(workflow, /inputs\.publish_unsigned_windows == true/);
+  assert.match(workflow, /steps\.release_state\.outputs\.signed == 'false'/);
+  assert.match(workflow, /test_tag=windows-v\$version-test1/);
+  assert.match(workflow, /tag_name:\s*\$\{\{ steps\.release_state\.outputs\.test_tag \}\}/);
+  assert.match(workflow, /prerelease:\s*true/);
+  assert.match(workflow, /SmartScreen/);
+});
+
 test('Windows 默认使用软件渲染并记录 GPU 或渲染进程崩溃', () => {
   const mainSource = fs.readFileSync(path.join(projectRoot, 'main.js'), 'utf8');
   assert.match(mainSource, /process\.platform === 'win32'[\s\S]*app\.disableHardwareAcceleration\(\)/);

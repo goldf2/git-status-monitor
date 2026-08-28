@@ -16,7 +16,7 @@
 5. Windows 文件操作遵循大小写不敏感目标去重、保留文件名与非法字符校验、跨卷复制成功后删除来源、文件占用错误显示和符号链接权限说明。
 6. 终端优先 Windows Terminal，其次 PowerShell 7、Windows PowerShell 和命令提示符。Git for Windows、VS Code 和 PyCharm 都必须可发现，也允许用户在本机设置中选择可执行文件。
 7. 每个产物记录版本、架构、字节数和 SHA-256，并附加签名、安装、启动与卸载报告。
-8. 只有 Authenticode 状态为 `Valid` 的标签产物可上传稳定 GitHub Release。没有代码签名时，产物只是 `unsigned-test-build`，必须显示 SmartScreen 风险并仅作为 CI 附件。
+8. 只有 Authenticode 状态为 `Valid` 的标签产物可上传稳定 GitHub Release。没有代码签名时，产物只是 `unsigned-test-build`，必须显示 SmartScreen 风险；默认仅作为 CI 附件，只有手动运行者明确开启 `publish_unsigned_windows` 后，才可把同一已验收产物发布为独立预发布测试版。
 
 ## 结果
 
