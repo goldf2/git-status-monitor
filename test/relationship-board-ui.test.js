@@ -280,9 +280,65 @@ test('选择节点或关系时使用非模态详情检查器编辑受控事实�
   assert.match(controllerSource, /标记为刚刚验证/);
   assert.match(controllerSource, /Model\.assertValidStore\(nextStore\)/);
   assert.match(controllerSource, /不会连接服务器、执行部署或修改 Git/);
+  assert.match(controllerSource, /key: 'version', label: '版本'/);
+  assert.match(controllerSource, /key: 'branch', label: '分支'/);
+  assert.match(controllerSource, /key: 'revision', label: '提交'/);
   assert.match(relationshipCss, /\.relationship-body\.has-inspector/);
   assert.match(relationshipCss, /@media\s*\(prefers-reduced-transparency:\s*reduce\)/);
   assert.match(relationshipCss, /@media\s*\(prefers-contrast:\s*more\)/);
+});
+
+test('部署节点用结构化版本上下文生成可扫描副标题', () => {
+  const controller = new Controller({ bridge: {} });
+  const subtitle = controller._entitySubtitle({
+    type: 'deployment',
+    details: {
+      environment: 'production',
+      version: 'v2.4.1',
+      branch: 'release/2.4',
+      revision: 'abcdef012345',
+      status: 'running'
+    }
+  }, null, false);
+
+  assert.equal(subtitle, 'production · v2.4.1 · release/2.4 · abcdef012345 · running');
+});
+
+test('手工部署创建入口将版本上下文写入受控详情字段', async () => {
+  const controller = new Controller({ bridge: {} });
+  let createdEntity = null;
+  controller._openFormDialog = async options => {
+    assert.deepEqual(options.fields.map(field => field.key), [
+      'name',
+      'environment',
+      'version',
+      'branch',
+      'revision',
+      'status'
+    ]);
+    return {
+      name: 'MES production',
+      environment: 'production',
+      version: 'v2.4.1',
+      branch: 'release/2.4',
+      revision: 'abcdef012345',
+      status: 'running'
+    };
+  };
+  controller._addEntity = entity => { createdEntity = entity; };
+
+  await controller._createManualEntity('deployment');
+
+  assert.equal(createdEntity.type, 'deployment');
+  assert.equal(createdEntity.name, 'MES production');
+  assert.deepEqual(createdEntity.details, {
+    environment: 'production',
+    version: 'v2.4.1',
+    branch: 'release/2.4',
+    revision: 'abcdef012345',
+    status: 'running'
+  });
+  assert.equal(createdEntity.source, 'manual');
 });
 
 test('事实检查器显示自定义复核周期和默认周期说明', () => {
@@ -327,8 +383,8 @@ test('部署摘要从完整事实链派生并聚合同一项目到服务器的�
       { id: 'entity_project1', type: 'project', name: 'Alpha', refId: 'project_alpha01', details: {} },
       { id: 'entity_repo0001', type: 'repository', name: 'Repo A', refId: 'repo_alpha001', details: {} },
       { id: 'entity_repo0002', type: 'repository', name: 'Repo B', refId: 'repo_alpha002', details: {} },
-      { id: 'entity_deploy01', type: 'deployment', name: 'Deploy A', details: { environment: 'production' } },
-      { id: 'entity_deploy02', type: 'deployment', name: 'Deploy B', details: { environment: 'staging' } },
+      { id: 'entity_deploy01', type: 'deployment', name: 'Deploy A', details: { environment: 'production', version: 'v2.4.1' } },
+      { id: 'entity_deploy02', type: 'deployment', name: 'Deploy B', details: { environment: 'staging', branch: 'develop', revision: 'abcdef012345' } },
       { id: 'entity_server01', type: 'server', name: 'Con01', details: {} }
     ],
     relationships: [
@@ -366,8 +422,8 @@ test('部署摘要从完整事实链派生并聚合同一项目到服务器的�
   assert.equal(graph.summaryRelationships[0].targetId, 'entity_server01');
   assert.equal(graph.summaryRelationships[0].count, 2);
   assert.equal(graph.summaryRelationships[0].label, '部署 ×2');
-  assert.match(graph.summaryRelationships[0].title, /Deploy A · production/);
-  assert.match(graph.summaryRelationships[0].title, /Deploy B · staging/);
+  assert.match(graph.summaryRelationships[0].title, /Deploy A · production · v2\.4\.1/);
+  assert.match(graph.summaryRelationships[0].title, /Deploy B · staging · develop · abcdef012345/);
   assert.equal(controller.store.entities.length, entityCount);
   assert.equal(controller.store.relationships.length, relationshipCount);
 

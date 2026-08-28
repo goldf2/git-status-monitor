@@ -21,7 +21,7 @@
   const SENSITIVE_KEY_PATTERN = /(password|passwd|secret|token|credential|private.?key|access.?key)/i;
   const DETAILS_KEYS = Object.freeze({
     server: new Set(['environment', 'hostLabel', 'notes']),
-    deployment: new Set(['environment', 'status', 'notes']),
+    deployment: new Set(['environment', 'version', 'branch', 'revision', 'status', 'notes']),
     project: new Set(),
     repository: new Set(),
     endpoint: new Set(['urlLabel', 'notes']),

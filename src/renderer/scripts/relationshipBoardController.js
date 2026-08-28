@@ -52,6 +52,9 @@
     ],
     deployment: [
       { key: 'environment', label: '环境', maxLength: 240 },
+      { key: 'version', label: '版本', maxLength: 240 },
+      { key: 'branch', label: '分支', maxLength: 240 },
+      { key: 'revision', label: '提交', maxLength: 240 },
       { key: 'status', label: '声明状态', maxLength: 240 },
       { key: 'notes', label: '备注', maxLength: 1000, multiline: true }
     ],
@@ -495,7 +498,13 @@
         const deployments = [...new Set(summary.chains.map(chain => chain.deploymentId))];
         const deploymentLabels = deployments.map(entityId => {
           const entity = entitiesById.get(entityId);
-          return [entity?.name, entity?.details?.environment].filter(Boolean).join(' · ');
+          return [
+            entity?.name,
+            entity?.details?.environment,
+            entity?.details?.version,
+            entity?.details?.branch,
+            entity?.details?.revision
+          ].filter(Boolean).join(' · ');
         }).filter(Boolean);
         const facts = summary.chains.flatMap(chain => chain.facts);
         return {
@@ -1005,7 +1014,15 @@
       if (stale) return '引用已失效 · 保留关系事实';
       if (resource) return resource.secondary;
       if (entity.type === 'server') return entity.details.hostLabel || entity.details.environment || '手工服务器节点';
-      if (entity.type === 'deployment') return [entity.details.environment, entity.details.status].filter(Boolean).join(' · ') || '手工部署节点';
+      if (entity.type === 'deployment') {
+        return [
+          entity.details.environment,
+          entity.details.version,
+          entity.details.branch,
+          entity.details.revision,
+          entity.details.status
+        ].filter(Boolean).join(' · ') || '手工部署节点';
+      }
       if (entity.type === 'endpoint') return entity.details.urlLabel || '访问端点';
       return entity.details.notes || TYPE_LABELS[entity.type];
     }
@@ -1699,6 +1716,9 @@
       }
       if (type === 'deployment') {
         fields.push({ key: 'environment', label: '环境', placeholder: 'production / staging', maxLength: 240 });
+        fields.push({ key: 'version', label: '版本', placeholder: '例如 v2.4.1 或镜像标签', maxLength: 240 });
+        fields.push({ key: 'branch', label: '分支', placeholder: '例如 main / release', maxLength: 240 });
+        fields.push({ key: 'revision', label: '提交', placeholder: '例如 abcdef012345', maxLength: 240 });
         fields.push({ key: 'status', label: '状态', placeholder: '运行中 / 待验证', maxLength: 240 });
       }
       if (type === 'endpoint') fields.push({ key: 'urlLabel', label: '地址标签', placeholder: '例如 https://mes.example.com', maxLength: 240 });

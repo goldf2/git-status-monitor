@@ -266,14 +266,15 @@ function buildObservedStore(snapshot, registry, source) {
     const revision = /^[a-f0-9]{7,64}$/i.test(String(app?.git_commit_sha || ''))
       ? String(app.git_commit_sha).slice(0, 12)
       : '';
-    const notes = [type ? `Coolify ${type}` : '', branch ? `分支 ${branch}` : '', revision ? `提交 ${revision}` : '']
-      .filter(Boolean).join(' · ');
+    const notes = type ? `Coolify ${type}` : '';
     const id = stableId('entity', `${source.origin}:deployment:${uuid}`);
     return addEntity({
       id,
       type: 'deployment',
       name,
       details: {
+        ...(branch ? { branch } : {}),
+        ...(revision ? { revision } : {}),
         ...(status ? { status } : {}),
         ...(notes ? { notes } : {})
       },

@@ -139,6 +139,10 @@ test('Coolify 只读发现零写入预览，白名单化后确认合并并支持
   assert.equal(store.relationships.filter(relation => relation.type === 'exposes').length, 2);
   assert.ok(store.relationships.every(relation => relation.source === 'observed'));
   assert.equal(store.entities.find(entity => entity.type === 'repository').source, 'gitfinder-registry');
+  const mesDeployment = store.entities.find(entity => entity.type === 'deployment' && entity.name === 'MES production');
+  assert.equal(mesDeployment.details.branch, 'main');
+  assert.equal(mesDeployment.details.revision, 'abcdef012345');
+  assert.doesNotMatch(mesDeployment.details.notes, /分支|提交/);
   assert.doesNotMatch(JSON.stringify(store), /must-not-be-kept|preview_token|10\.0\.0\.8/);
 
   const retried = importService.applyImport({

@@ -9,7 +9,17 @@ function validStore() {
     entities: [
       { id: 'entity_project1', type: 'project', name: 'MES', refId: 'project_12345678-1234-4234-9234-123456789abc', details: {} },
       { id: 'entity_repo0001', type: 'repository', name: 'MES Repo', refId: 'r_123456789abc', details: {} },
-      { id: 'entity_deploy01', type: 'deployment', name: 'Production', details: { environment: 'production' } },
+      {
+        id: 'entity_deploy01',
+        type: 'deployment',
+        name: 'Production',
+        details: {
+          environment: 'production',
+          version: 'v1.30.5',
+          branch: 'main',
+          revision: 'abcdef012345'
+        }
+      },
       { id: 'entity_server01', type: 'server', name: 'Con01', details: { hostLabel: 'con01.internal' } }
     ],
     relationships: [
@@ -36,6 +46,22 @@ test('关系模型接受项目到仓库再到部署和服务器的受约束链�
   assert.equal(normalized.relationships.length, 3);
   assert.equal(normalized.boards[0].placements.length, 4);
   assert.deepEqual(normalized.boards[0].view, RelationshipGraphModel.defaultBoardView());
+  assert.deepEqual(normalized.entities[2].details, {
+    environment: 'production',
+    version: 'v1.30.5',
+    branch: 'main',
+    revision: 'abcdef012345'
+  });
+});
+
+test('部署节点只接受结构化版本上下文字段', () => {
+  const store = validStore();
+  store.entities[2].details.imageTag = 'latest';
+
+  assert.throws(
+    () => RelationshipGraphModel.assertValidStore(store),
+    /details\.imageTag 不是允许的字段/
+  );
 });
 
 test('白板视图配置保存筛选和精简模式并兼容旧数据', () => {
