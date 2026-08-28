@@ -159,6 +159,7 @@ const App = {
   unavailableLocationController: null,
   directorySelectionController: null,
   relationshipBoardController: null,
+  workspaceTabOverflowController: null,
 
   async init() {
     try {
@@ -193,6 +194,7 @@ const App = {
     this.setupUnavailableLocationController();
     this.setupDirectorySelectionController();
     this.setupRelationshipBoardController();
+    this.setupWorkspaceTabOverflowController();
     this.setupEventListeners();
     // 初始化内嵌终端
     if (typeof Terminal !== 'undefined') {
@@ -505,6 +507,14 @@ const App = {
         if (AppState.currentMode === 'relationships') this.updateStatusBar();
       }
     });
+  },
+
+  setupWorkspaceTabOverflowController() {
+    this.workspaceTabOverflowController = new window.WorkspaceTabOverflowController.Controller({
+      document,
+      window
+    });
+    this.workspaceTabOverflowController.mount();
   },
 
   setupEventListeners() {
@@ -2246,7 +2256,7 @@ const App = {
               ? '所有受管位置 · 项目 + Git 仓库筛选'
               : (collectionKind === 'file-labels' ? '所有受管位置 · 文件标签' : (tab.path || title)))));
       return `
-        <div class="workspace-tab ${active ? 'active' : ''}" data-tab-id="${this.escapeHtml(tab.id)}" role="tab" tabindex="${active ? '0' : '-1'}" aria-selected="${active ? 'true' : 'false'}" aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight" draggable="true" title="${this.escapeHtml(tabHelp)}">
+        <div class="workspace-tab ${active ? 'active' : ''}" data-tab-id="${this.escapeHtml(tab.id)}" role="tab" tabindex="${active ? '0' : '-1'}" aria-selected="${active ? 'true' : 'false'}" aria-label="${this.escapeHtml(`${title}，${tabHelp}`)}" aria-keyshortcuts="Alt+Shift+ArrowLeft Alt+Shift+ArrowRight" draggable="true" title="${this.escapeHtml(title)}">
           <span class="workspace-tab-icon" aria-hidden="true">${icon}</span>
           <span class="workspace-tab-title">${this.escapeHtml(title)}</span>
           <button class="workspace-tab-close" type="button" data-close-tab="${this.escapeHtml(tab.id)}" title="关闭标签页 (⌘W)" aria-label="关闭 ${this.escapeHtml(title)}" ${onlyOne ? 'disabled' : ''}>×</button>
@@ -2280,7 +2290,8 @@ const App = {
         this.closeWorkspaceTab(button.dataset.closeTab);
       });
     });
-    container.querySelector('.workspace-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (this.workspaceTabOverflowController) this.workspaceTabOverflowController.afterRender();
+    else container.querySelector('.workspace-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   },
 
   setupWorkspaceTabDrag() {

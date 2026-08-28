@@ -64,6 +64,45 @@ body {
   display: none;
 }
 
+.workspace-tab-overflow {
+  width: 23px;
+  height: 25px;
+  flex: 0 0 23px;
+  align-self: center;
+  margin-bottom: 2px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  background: transparent;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-tab-overflow[hidden] {
+  display: none;
+}
+
+.workspace-tab-overflow:not(:disabled):hover,
+.workspace-tab-overflow:not(:disabled):focus-visible {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.workspace-tab-overflow.contains-active-tab {
+  border-color: color-mix(in srgb, var(--accent-primary) 34%, transparent);
+  color: var(--accent-primary);
+  background: var(--accent-bg);
+}
+
+.workspace-tab-overflow:disabled {
+  opacity: 0.28;
+}
+
 .workspace-tab {
   min-width: 132px;
   max-width: 220px;

@@ -103,7 +103,9 @@
     </header>
 
     <nav class="workspace-tab-strip" aria-label="浏览标签页">
+      <button class="workspace-tab-overflow" id="workspace-tabs-left" type="button" aria-label="向左浏览标签页" title="向左浏览标签页" aria-controls="workspace-tabs" hidden>‹</button>
       <div class="workspace-tabs" id="workspace-tabs" role="tablist"></div>
+      <button class="workspace-tab-overflow" id="workspace-tabs-right" type="button" aria-label="向右浏览标签页" title="向右浏览标签页" aria-controls="workspace-tabs" hidden>›</button>
       <button class="workspace-new-tab" id="workspace-new-tab" type="button" title="新建标签页 (⌘T)" aria-label="新建标签页">＋</button>
     </nav>
 
@@ -1359,6 +1361,7 @@
   <script src="scripts/galleryView.js"></script>
   <script src="scripts/galleryThumbnails.js"></script>
   <script src="scripts/workspaceTabs.js"></script>
+  <script src="scripts/workspaceTabOverflowController.js"></script>
   <script src="scripts/repoStatusBatch.js"></script>
   <script src="scripts/projectTaskRelations.js"></script>
   <script src="scripts/relationshipBoardController.js"></script>

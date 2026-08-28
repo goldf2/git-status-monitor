@@ -1,6 +1,6 @@
 {
   "name": "git-status-monitor",
-  "version": "1.30.6",
+  "version": "1.30.7",
   "description": "GitFinder - 智能Git项目管理器",
   "main": "main.js",
   "productName": "GitFinder",
