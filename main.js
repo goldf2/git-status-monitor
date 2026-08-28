@@ -3,9 +3,9 @@
 // 注意:fix-path v4+ 是纯 ESM,无法在 CJS 中 require,这里直接实现
 if (process.platform === 'darwin') {
   try {
-    const { execSync } = require('child_process');
+    const { execFileSync } = require('child_process');
     const shell = process.env.SHELL || '/bin/zsh';
-    const output = execSync(`"${shell}" -ilc 'echo $PATH'`, { encoding: 'utf8', timeout: 5000 });
+    const output = execFileSync(shell, ['-ilc', 'echo $PATH'], { encoding: 'utf8', timeout: 5000 });
     // 取最后一行包含路径分隔符的输出,过滤 shell 启动时的杂讯
     const fullPath = output.trim().split('\n').filter(l => l.includes('/') && l.includes(':')).pop();
     if (fullPath) process.env.PATH = fullPath;
@@ -14,14 +14,21 @@ if (process.platform === 'darwin') {
   }
 }
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { registerFilesystemIPC } = require('./src/main/ipc/filesystem');
+const { registerClipboardIPC } = require('./src/main/ipc/clipboard');
+const { registerFileOperationsIPC } = require('./src/main/ipc/fileOperations');
+const { registerContentIPC } = require('./src/main/ipc/content');
 const { registerGitIPC } = require('./src/main/ipc/git');
+const { registerProjectTasksIPC } = require('./src/main/ipc/projectTasks');
+const { registerLocalProjectsIPC } = require('./src/main/ipc/localProjects');
+const { registerRelationshipBoardsIPC } = require('./src/main/ipc/relationshipBoards');
 const { registerConfigIPC } = require('./src/main/ipc/config');
 const { registerTerminalHandlers } = require('./src/main/ipc/terminal');
+const { registerTrustedHandler } = require('./src/main/ipc/security');
 
 // 自动升级:开发模式下 require 会被跳过(electron-updater 在 asar 打包后才生效)
 const isDev = !app.isPackaged;
@@ -36,6 +43,18 @@ if (!isDev) {
 
 let mainWindow = null;
 const startupLogPath = path.join(os.tmpdir(), 'git-status-monitor-startup.log');
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.focus();
+  });
+}
 
 function writeStartupError(source, error) {
   const detail = error?.stack || error?.message || String(error);
@@ -75,7 +94,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
       enableWebGL: true,
       experimentalFeatures: false
     }
@@ -88,6 +107,11 @@ function createWindow() {
 
   mainWindow = new BrowserWindow(windowOptions);
 
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
   mainWindow.loadFile(path.join(__dirname, 'src', 'renderer', 'index.html'));
 
   if (process.env.NODE_ENV === 'development') {
@@ -97,6 +121,109 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+function setupApplicationMenu() {
+  const sendShortcut = action => mainWindow?.webContents.send('app:shortcut', action);
+  const editItem = (label, action, accelerator) => ({
+    id: `edit-${action}`,
+    label,
+    accelerator,
+    registerAccelerator: false,
+    click: () => sendShortcut(`edit:${action}`)
+  });
+  const settingsItem = () => ({
+    label: '设置…',
+    accelerator: 'CmdOrCtrl+,',
+    registerAccelerator: false,
+    click: () => sendShortcut('open-settings')
+  });
+  const template = [
+    ...(process.platform === 'darwin' ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        settingsItem(),
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: '文件',
+      submenu: [
+        { label: '新建标签页', accelerator: 'CmdOrCtrl+T', registerAccelerator: false, click: () => sendShortcut('new-tab') },
+        { label: '恢复关闭的标签页', accelerator: 'CmdOrCtrl+Shift+T', registerAccelerator: false, click: () => sendShortcut('restore-tab') },
+        { label: '关闭标签页', accelerator: 'CmdOrCtrl+W', registerAccelerator: false, click: () => sendShortcut('close-tab') },
+        { type: 'separator' },
+        {
+          label: '显示简介',
+          accelerator: process.platform === 'darwin' ? 'Cmd+I' : 'Alt+Enter',
+          registerAccelerator: false,
+          click: () => sendShortcut('show-file-info')
+        },
+        { type: 'separator' },
+        { role: 'close', label: '关闭窗口', registerAccelerator: false },
+        ...(process.platform !== 'darwin' ? [{ type: 'separator' }, settingsItem()] : [])
+      ]
+    },
+    {
+      label: '编辑',
+      submenu: [
+        editItem('撤销', 'undo', 'CmdOrCtrl+Z'),
+        editItem('重做', 'redo', process.platform === 'darwin' ? 'Cmd+Shift+Z' : 'Ctrl+Y'),
+        { type: 'separator' },
+        editItem('剪切', 'cut', 'CmdOrCtrl+X'),
+        editItem('复制', 'copy', 'CmdOrCtrl+C'),
+        {
+          label: '复制为路径名',
+          accelerator: process.platform === 'darwin' ? 'Alt+Cmd+C' : 'Ctrl+Shift+C',
+          registerAccelerator: false,
+          click: () => sendShortcut('copy-pathnames')
+        },
+        editItem('粘贴', 'paste', 'CmdOrCtrl+V'),
+        editItem('全选', 'select-all', 'CmdOrCtrl+A')
+      ]
+    },
+    {
+      label: '前往',
+      submenu: [
+        {
+          label: '前往文件夹…',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+G' : 'Ctrl+L',
+          registerAccelerator: false,
+          click: () => sendShortcut('open-go-to-folder')
+        }
+      ]
+    },
+    {
+      label: '显示',
+      submenu: [
+        { label: '文件浏览', click: () => sendShortcut('view:tree') },
+        { label: '仪表盘', click: () => sendShortcut('view:dashboard') },
+        { label: '开发任务', click: () => sendShortcut('view:tasks') },
+        { label: '关系白板', click: () => sendShortcut('view:relationships') },
+        { label: '文件操作历史', click: () => sendShortcut('open-file-history') },
+        { type: 'separator' },
+        { role: 'reload', label: '重新载入' },
+        { role: 'toggleDevTools', label: '开发者工具' },
+        { type: 'separator' },
+        { role: 'resetZoom', label: '实际大小' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '进入全屏幕' }
+      ]
+    },
+    { role: 'windowMenu', label: '窗口' }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 // ============ 自动升级 ============
@@ -180,7 +307,7 @@ function setupAutoUpdater() {
 }
 
 // IPC:手动检查更新
-ipcMain.handle('updater:check', async () => {
+registerTrustedHandler('updater:check', async () => {
   if (!autoUpdater || isDev) {
     return { available: false, reason: 'development' };
   }
@@ -201,30 +328,57 @@ ipcMain.handle('updater:check', async () => {
 });
 
 // IPC:获取当前版本
-ipcMain.handle('app:get-version', () => {
+registerTrustedHandler('app:get-version', () => {
   return app.getVersion();
 });
 
+registerTrustedHandler('app:perform-native-edit', (event, action) => {
+  const methods = {
+    undo: 'undo',
+    redo: 'redo',
+    cut: 'cut',
+    copy: 'copy',
+    paste: 'paste',
+    'select-all': 'selectAll'
+  };
+  const method = methods[String(action || '')];
+  if (!method || event.sender.isDestroyed()) return false;
+  const command = event.sender[method];
+  if (typeof command !== 'function') return false;
+  command.call(event.sender);
+  return true;
+});
+
 // IPC:下载更新
-ipcMain.handle('updater:download', () => {
+registerTrustedHandler('updater:download', () => {
   if (!autoUpdater || isDev) return false;
   autoUpdater.downloadUpdate();
   return true;
 });
 
 // IPC:退出并安装
-ipcMain.handle('updater:install', () => {
+registerTrustedHandler('updater:install', () => {
   if (!autoUpdater || isDev) return false;
   autoUpdater.quitAndInstall();
   return true;
 });
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return;
   registerFilesystemIPC();
+  registerClipboardIPC();
+  registerFileOperationsIPC();
+  registerContentIPC({
+    indexFilePath: path.join(app.getPath('userData'), 'workspace-content-index.json')
+  });
   registerGitIPC();
+  registerProjectTasksIPC();
+  registerLocalProjectsIPC();
+  registerRelationshipBoardsIPC();
   registerConfigIPC();
   registerTerminalHandlers();
 
+  setupApplicationMenu();
   createWindow();
   setupAutoUpdater();
 
@@ -235,7 +389,7 @@ app.whenReady().then(() => {
   });
 }).catch(error => {
   writeStartupError('app.whenReady', error);
-  dialog.showErrorBox('Git Status Monitor 启动失败', `错误日志: ${startupLogPath}`);
+  dialog.showErrorBox('GitFinder 启动失败', `错误日志: ${startupLogPath}`);
   app.quit();
 });
 

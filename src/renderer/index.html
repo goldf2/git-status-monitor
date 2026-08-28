@@ -3,42 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <title>GitFinder</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="styles/sidebar.css">
   <link rel="stylesheet" href="styles/content.css">
   <link rel="stylesheet" href="styles/detail.css">
+  <link rel="stylesheet" href="styles/relationships.css">
   <link rel="stylesheet" href="styles/theme.css">
 </head>
 <body>
   <div id="app">
     <header class="toolbar">
       <div class="toolbar-left">
-        <button class="nav-btn" id="btn-back" title="后退">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-        <button class="nav-btn" id="btn-forward" title="前进">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </button>
-        <button class="nav-btn" id="btn-up" title="上级目录">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="18 15 12 9 6 15"></polyline>
-          </svg>
-        </button>
-        <div class="view-switcher">
-          <button class="view-btn active" data-view="tree" title="目录模式：按文件夹浏览">
-            <span>目录模式</span>
+        <div class="finder-nav-group" role="group" aria-label="位置导航">
+          <button class="nav-btn" id="btn-back" aria-label="返回上一位置" title="后退 (⌘[)" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
           </button>
-          <button class="view-btn" data-view="grid" title="仓库模式：聚合所有 Git 仓库">
-            <span>仓库模式</span>
+          <button class="nav-btn" id="btn-forward" aria-label="前往下一位置" title="前进 (⌘])" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
           </button>
-          <button class="view-btn" id="btn-dashboard" data-view="dashboard" title="项目仪表板：查看总体统计">
-            <span>仪表板</span>
+          <button class="nav-btn" id="btn-up" aria-label="前往上级目录" title="上级目录 (⌘↑)" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
           </button>
+          <button class="nav-btn" id="btn-go-to-folder" aria-label="前往文件夹" title="前往文件夹 (⌘⇧G)" type="button">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+              <path d="M3 7.5V6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v3"></path>
+              <path d="M3 8h18l-1.4 9.1A2 2 0 0 1 17.6 19H6.4a2 2 0 0 1-2-1.9L3 8Z"></path>
+              <path d="m13.5 13 2-2 2 2M15.5 11v5"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="finder-menu-host toolbar-view-menu">
+          <button class="finder-toolbar-button" id="view-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="view-menu" data-menu-trigger="view-menu" type="button" title="切换工作区视图">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            <span id="view-menu-label">文件浏览</span>
+            <span class="finder-menu-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="finder-menu" id="view-menu" role="menu" hidden aria-label="工作区视图">
+            <button class="view-btn finder-menu-item active" data-view="tree" role="menuitemradio" aria-checked="true" type="button">
+              <span class="finder-menu-check" aria-hidden="true">✓</span><span>文件浏览</span><small>目录与内容筛选</small>
+            </button>
+            <button class="view-btn finder-menu-item" id="btn-dashboard" data-view="dashboard" role="menuitemradio" aria-checked="false" type="button">
+              <span class="finder-menu-check" aria-hidden="true">✓</span><span>仪表盘</span><small>项目总体统计</small>
+            </button>
+            <button class="view-btn finder-menu-item" id="btn-project-tasks" data-view="tasks" role="menuitemradio" aria-checked="false" type="button">
+              <span class="finder-menu-check" aria-hidden="true">✓</span><span>开发任务</span><small>Local Project Manager</small>
+            </button>
+            <button class="view-btn finder-menu-item" id="btn-relationships" data-view="relationships" role="menuitemradio" aria-checked="false" type="button">
+              <span class="finder-menu-check" aria-hidden="true">✓</span><span>关系白板</span><small>项目、部署与服务器拓扑</small>
+            </button>
+          </div>
         </div>
         <div class="current-path" id="current-path"></div>
       </div>
@@ -48,7 +74,8 @@
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" id="search-input" placeholder="搜索项目...">
+          <input type="text" id="search-input" placeholder="搜索当前视图...">
+          <button class="search-scope-btn" id="search-scope-btn" type="button" aria-pressed="false" title="切换到所有受管目录搜索">当前</button>
         </div>
       </div>
       <div class="toolbar-right">
@@ -66,7 +93,7 @@
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
           </svg>
         </button>
-        <button class="nav-btn" id="btn-settings" title="设置">
+        <button class="nav-btn" id="btn-settings" type="button" aria-label="应用设置" title="应用设置 (⌘,)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -74,6 +101,11 @@
         </button>
       </div>
     </header>
+
+    <nav class="workspace-tab-strip" aria-label="浏览标签页">
+      <div class="workspace-tabs" id="workspace-tabs" role="tablist"></div>
+      <button class="workspace-new-tab" id="workspace-new-tab" type="button" title="新建标签页 (⌘T)" aria-label="新建标签页">＋</button>
+    </nav>
 
     <div class="main-container">
       <aside class="sidebar" id="sidebar">
@@ -85,6 +117,15 @@
           </div>
           <div id="favorites-list"></div>
           <button class="sidebar-add-btn" id="add-favorite-btn">+ 添加收藏</button>
+        </div>
+
+        <div class="sidebar-section" id="project-shortcuts-sidebar-section" data-section-id="projects" hidden>
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">项目</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div id="project-shortcuts-list"></div>
         </div>
 
         <div class="sidebar-section sidebar-tree-section" data-section-id="locations">
@@ -100,20 +141,29 @@
           </div>
         </div>
 
-        <div class="sidebar-section" id="groups-sidebar-section" data-section-id="groups">
+        <div class="sidebar-section" id="smart-collections-sidebar-section" data-section-id="smart-collections" hidden>
           <div class="sidebar-title">
             <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
-            <span class="sidebar-title-text">项目分类</span>
+            <span class="sidebar-title-text">智能集合</span>
             <span class="sidebar-toggle" title="折叠/展开">▼</span>
           </div>
-          <div id="groups-list"></div>
-          <button class="sidebar-add-btn" id="add-group-bottom-btn">+ 添加分类</button>
+          <div id="smart-collections-list"></div>
+        </div>
+
+        <div class="sidebar-section" id="file-labels-sidebar-section" data-section-id="file-labels">
+          <div class="sidebar-title">
+            <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
+            <span class="sidebar-title-text">文件标签</span>
+            <span class="sidebar-toggle" title="折叠/展开">▼</span>
+          </div>
+          <div id="file-labels-sidebar-list"></div>
+          <button class="sidebar-add-btn" id="manage-file-labels-sidebar-btn" type="button">管理标签…</button>
         </div>
 
         <div class="sidebar-section" id="tags-sidebar-section" data-section-id="tags">
           <div class="sidebar-title">
             <span class="sidebar-drag-handle" title="拖拽排序">⋮⋮</span>
-            <span class="sidebar-title-text">标签</span>
+            <span class="sidebar-title-text">仓库标签</span>
             <span class="sidebar-toggle" title="折叠/展开">▼</span>
           </div>
           <div id="tags-filter-list"></div>
@@ -126,12 +176,21 @@
       <main class="content-area">
         <div class="filter-bar" id="filter-bar" style="display:none;">
           <span class="filter-label">筛选方式：</span>
-          <label class="filter-checkbox"><input type="checkbox" id="filter-category-check" checked> 分类</label>
-          <label class="filter-checkbox"><input type="checkbox" id="filter-tag-check" checked> 标签</label>
+          <div class="repository-category-filter" id="repository-category-filter">
+            <button class="repository-category-trigger" id="category-filter-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="category-filter-dropdown">
+              <span id="category-filter-label">分类：全部</span><span aria-hidden="true">⌄</span>
+            </button>
+            <div class="repository-category-dropdown" id="category-filter-dropdown" role="menu" hidden>
+              <div id="groups-list"></div>
+              <button class="repository-category-add" id="add-group-bottom-btn" type="button" role="menuitem">＋ 添加分类…</button>
+            </div>
+          </div>
+          <label class="filter-checkbox"><input type="checkbox" id="filter-tag-check" checked> 仓库标签</label>
           <div class="status-filter-wrapper">
             <label class="filter-checkbox"><input type="checkbox" id="filter-status-check" checked> 状态</label>
             <button class="status-filter-btn" id="status-filter-btn" type="button">选择 ▼</button>
             <div class="status-filter-dropdown" id="status-filter-dropdown">
+              <label class="status-filter-item"><input type="checkbox" value="clean"> 已同步<span class="status-desc">当前读取未发现修改或领先/落后</span></label>
               <label class="status-filter-item"><input type="checkbox" value="dirty"> 未提交<span class="status-desc">有修改/暂存/未跟踪文件</span></label>
               <label class="status-filter-item"><input type="checkbox" value="ahead"> 未推送<span class="status-desc">有未推送的提交</span></label>
               <label class="status-filter-item"><input type="checkbox" value="behind"> 未拉取<span class="status-desc">远程有新提交</span></label>
@@ -144,6 +203,46 @@
           <div class="filter-summary" id="filter-summary"></div>
           <button class="clear-filter-btn" id="clear-all-filters">清除全部</button>
         </div>
+        <div class="file-action-bar" id="file-action-bar">
+          <div class="finder-menu-host">
+            <button class="file-action-btn finder-menu-trigger" id="file-create-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="file-create-menu" data-menu-trigger="file-create-menu" type="button">
+              <span aria-hidden="true">＋</span> 新建 <span class="finder-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="finder-menu" id="file-create-menu" role="menu" hidden aria-label="新建项目">
+              <button class="finder-menu-item finder-menu-command" id="file-new-folder" type="button" role="menuitem"><span>新建文件夹</span><kbd>⌘⇧N</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-new-file" type="button" role="menuitem"><span>新建空白文件</span></button>
+            </div>
+          </div>
+          <span class="file-selection-summary" id="file-selection-summary">未选择项目</span>
+          <button class="file-action-btn" id="file-preview" type="button" title="快速预览 (空格)" disabled>快速预览</button>
+          <div class="file-action-spacer"></div>
+          <div class="finder-menu-host">
+            <button class="file-action-btn finder-menu-trigger" id="file-actions-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="file-actions-menu" data-menu-trigger="file-actions-menu" type="button">
+              操作 <span class="finder-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="finder-menu finder-menu-align-end" id="file-actions-menu" role="menu" hidden aria-label="文件操作">
+              <button class="finder-menu-item finder-menu-command" id="file-copy" type="button" role="menuitem" disabled><span>复制</span><kbd>⌘C</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-copy-path" type="button" role="menuitem" disabled><span>复制为路径名</span><kbd>⌥⌘C</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-cut" type="button" role="menuitem" disabled><span>剪切</span><kbd>⌘X</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-paste" type="button" role="menuitem" disabled><span>粘贴</span><kbd>⌘V</kbd></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <button class="finder-menu-item finder-menu-command" id="file-get-info" type="button" role="menuitem" disabled><span>显示简介</span><kbd>⌘I</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-duplicate" type="button" role="menuitem" disabled><span>制作副本</span><kbd>⌘D</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-rename" type="button" role="menuitem" disabled><span>重命名</span><kbd>Return</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-move" type="button" role="menuitem" disabled><span>移动到…</span></button>
+              <button class="finder-menu-item finder-menu-command" id="file-open-editor" type="button" role="menuitem" disabled><span>在代码编辑器中打开</span></button>
+              <button class="finder-menu-item finder-menu-command" id="file-labels" type="button" role="menuitem" disabled><span>分配标签…</span></button>
+              <button class="finder-menu-item finder-menu-command" id="file-favorite" type="button" role="menuitem" disabled><span>添加到收藏夹</span></button>
+              <button class="finder-menu-item finder-menu-command" id="file-project-settings" type="button" role="menuitem" disabled><span>设为项目…</span></button>
+              <button class="finder-menu-item finder-menu-command finder-menu-danger" id="file-trash" type="button" role="menuitem" disabled><span>移到废纸篓</span><kbd>⌘⌫</kbd></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <button class="finder-menu-item finder-menu-command" id="file-undo" type="button" role="menuitem" disabled><span>撤销上一步文件操作</span><kbd>⌘Z</kbd></button>
+              <button class="finder-menu-item finder-menu-command" id="file-redo" type="button" role="menuitem" disabled><span>重做上一步文件操作</span><kbd>⌘⇧Z</kbd></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <button class="finder-menu-item finder-menu-command" id="file-history" type="button" role="menuitem"><span>文件操作历史…</span><small>最近 50 条</small></button>
+            </div>
+          </div>
+        </div>
         <div class="sort-bar" id="sort-bar">
           <button class="sort-btn" id="btn-refresh" title="刷新">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -154,32 +253,66 @@
             刷新
           </button>
           <span class="sort-divider"></span>
-          <span class="sort-label">排序：</span>
-          <div class="sort-options">
-            <button class="sort-btn active" data-sort="name">名称</button>
-            <button class="sort-btn" data-sort="path">路径</button>
-            <button class="sort-btn" data-sort="dir">目录</button>
-            <button class="sort-btn" data-sort="status">Git状态</button>
-            <button class="sort-btn" data-sort="time">修改时间</button>
-            <button class="sort-btn" data-sort="size">大小</button>
-            <button class="sort-btn" data-sort="branch">分支</button>
+          <div class="finder-menu-host" id="directory-type-filter">
+            <button class="sort-btn finder-menu-trigger" id="directory-filter-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="directory-filter-menu" data-menu-trigger="directory-filter-menu" title="筛选当前目录内容" type="button">
+              <svg class="finder-filter-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 3h12L9.5 8v4l-3 1V8L2 3Z"/></svg>
+              <span id="directory-filter-label">内容 · 全部</span> <span class="finder-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="finder-menu" id="directory-filter-menu" role="menu" hidden aria-label="目录内容类型">
+              <div class="finder-menu-heading" id="directory-filter-scope-heading">当前目录</div>
+              <button class="directory-type-btn directory-base-btn finder-menu-item active" data-content-base="all" type="button" role="menuitemradio" aria-checked="true"><span class="finder-menu-check" aria-hidden="true">✓</span><span>全部</span></button>
+              <button class="directory-type-btn directory-base-btn finder-menu-item" data-content-base="directory" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>文件夹</span></button>
+              <button class="directory-type-btn directory-base-btn finder-menu-item" data-content-base="file" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>文件</span></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <div class="finder-menu-heading">属性（可组合）</div>
+              <button class="directory-type-btn directory-attribute-btn finder-menu-item" data-content-attribute="project" type="button" role="menuitemcheckbox" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>项目</span></button>
+              <button class="directory-type-btn directory-attribute-btn finder-menu-item" data-content-attribute="repository" type="button" role="menuitemcheckbox" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>Git 仓库</span></button>
+              <button class="finder-menu-item finder-menu-command" id="content-filter-more" type="button" role="menuitem"><span>更多筛选…</span><small id="content-filter-more-summary">未设置</small></button>
+              <button class="finder-menu-item finder-menu-command" id="content-filter-save-collection" type="button" role="menuitem" disabled><span>存为智能集合…</span><small>所有位置筛选</small></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <div class="finder-menu-heading">所有受管位置</div>
+              <button class="content-preset-btn finder-menu-item" data-content-preset="all-projects" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>所有项目</span></button>
+              <button class="content-preset-btn finder-menu-item" data-content-preset="all-repositories" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>所有 Git 仓库</span></button>
+            </div>
           </div>
-          <div class="sort-direction">
-            <button class="dir-btn active" data-dir="asc">↑</button>
-            <button class="dir-btn" data-dir="desc">↓</button>
+          <span class="sort-divider directory-type-divider" id="directory-type-divider"></span>
+          <div class="finder-menu-host" id="directory-sort-menu-host">
+            <button class="sort-btn finder-menu-trigger" id="sort-menu-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="sort-menu" data-menu-trigger="sort-menu" type="button">
+              <span id="sort-menu-label">名称 · 升序 · 图标</span> <span class="finder-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="finder-menu finder-menu-wide finder-menu-align-end" id="sort-menu" role="menu" hidden aria-label="排列与显示选项">
+              <div class="finder-menu-heading">排列</div>
+              <button class="sort-btn finder-menu-item active" data-sort="name" type="button" role="menuitemradio" aria-checked="true"><span class="finder-menu-check" aria-hidden="true">✓</span><span>名称</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="path" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>路径</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="dir" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>目录</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="status" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>Git 状态</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="time" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>修改时间</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="size" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>大小</span></button>
+              <button class="sort-btn finder-menu-item" data-sort="branch" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>分支</span></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <div class="finder-menu-heading">方向</div>
+              <button class="dir-btn finder-menu-item active" data-dir="asc" type="button" role="menuitemradio" aria-checked="true"><span class="finder-menu-check" aria-hidden="true">✓</span><span>升序</span></button>
+              <button class="dir-btn finder-menu-item" data-dir="desc" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>降序</span></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <div class="finder-menu-heading">视图</div>
+              <button class="style-btn finder-menu-item active" data-style="card" type="button" role="menuitemradio" aria-checked="true"><span class="finder-menu-check" aria-hidden="true">✓</span><span>图标</span><kbd>⌘1</kbd></button>
+              <button class="style-btn finder-menu-item" data-style="list" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>列表</span><kbd>⌘2</kbd></button>
+              <button class="style-btn finder-menu-item" data-style="column" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>分栏</span><kbd>⌘3</kbd></button>
+              <button class="style-btn finder-menu-item" data-style="gallery" type="button" role="menuitemradio" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>图库</span><kbd>⌘4</kbd></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <div class="finder-menu-heading">显示</div>
+              <button class="finder-menu-item finder-menu-command" id="toggle-hidden-files" type="button" role="menuitemcheckbox" aria-checked="false"><span class="finder-menu-check" aria-hidden="true">✓</span><span>显示隐藏项目</span><kbd>⌘⇧.</kbd></button>
+              <div class="finder-menu-separator" role="separator"></div>
+              <button class="finder-menu-item finder-menu-command" id="directory-performance-diagnostics" type="button" role="menuitem" disabled><span>性能诊断…</span><small>当前目录本次读取</small></button>
+            </div>
           </div>
-          <div class="card-style-switch">
-            <button class="style-btn active" data-style="card">卡片</button>
-            <button class="style-btn" data-style="list">列表</button>
-          </div>
-          <label class="filter-checkbox" id="git-only-label" title="勾选=仅显示Git仓库,取消=显示所有文件夹"><input type="checkbox" id="git-only-check"> 只显示仓库</label>
         </div>
         <div class="content-scroll" id="content-scroll">
           <div id="content-area"></div>
           <div id="empty-state" style="display:none;">
             <div class="empty-icon">📂</div>
             <div class="empty-text">添加一个项目目录开始浏览</div>
-            <div class="empty-subtext">支持添加多个目录,在目录模式间自由切换,项目模式聚合展示所有 Git 仓库</div>
+            <div class="empty-subtext">支持添加多个目录，并通过内容筛选查看当前目录或所有受管位置的项目与 Git 仓库</div>
             <button class="btn btn-primary" id="choose-folder-btn">+ 添加目录</button>
           </div>
         </div>
@@ -196,12 +329,14 @@
           <div class="detail-header">
             <div class="detail-header-top">
               <h3 id="detail-name">仓库名称</h3>
-              <button class="detail-fav-btn" id="detail-fav-btn" title="收藏/取消收藏">☆</button>
+              <button class="detail-fav-btn" id="detail-fav-btn" title="添加到侧栏收藏夹">☆</button>
             </div>
             <div class="detail-path" id="detail-path">/path/to/repo</div>
             <div class="detail-status" id="detail-status"></div>
             <div class="detail-header-toolbar">
               <button class="btn btn-tiny" id="toggle-assignments-btn" title="隐藏/显示未选中的分类和标签气泡">隐藏未选</button>
+              <button class="btn btn-tiny" id="detail-project-settings" type="button" style="display:none;">项目设置</button>
+              <button class="btn btn-tiny" id="detail-relationship-board" type="button" style="display:none;">关系白板</button>
             </div>
           </div>
           <div class="detail-section collapsible" data-section-id="git-info">
@@ -288,6 +423,7 @@
               <span class="toggle-arrow">▼</span>
             </h4>
             <div class="terminal-panel" id="terminal-content">
+              <div class="terminal-security-note">每条命令都会先显示系统确认，不会在后台静默执行。</div>
               <div class="terminal-output" id="terminal-output"></div>
               <div class="terminal-input-line">
                 <span class="terminal-prompt">$</span>
@@ -304,6 +440,7 @@
             <div class="detail-actions detail-actions-secondary" id="system-actions-content">
               <button class="btn" id="detail-open-btn">在 Finder 中显示</button>
               <button class="btn" id="detail-terminal-btn">打开终端</button>
+              <button class="btn" id="detail-editor-btn">在代码编辑器中打开</button>
             </div>
           </div>
         </div>
@@ -312,32 +449,633 @@
 
     <footer class="status-bar">
       <div class="status-left" id="status-left">就绪</div>
-      <div class="status-center" id="status-center"></div>
+      <div class="status-center" id="status-center" role="status" aria-live="polite"></div>
+      <div class="status-work" id="repo-status-work" role="status" aria-live="polite" hidden>
+        <span class="status-work-spinner" aria-hidden="true"></span>
+        <span id="repo-status-work-text">正在读取 Git 状态…</span>
+        <button class="status-work-cancel" id="repo-status-cancel" type="button">取消</button>
+      </div>
       <div class="status-right" id="status-right">
         <button class="status-update-btn" id="btn-check-update" title="检查更新">检查更新</button>
       </div>
     </footer>
   </div>
 
-  <div class="modal-overlay" id="commit-modal" style="display:none;">
-    <div class="modal">
+  <div class="external-import-banner" id="external-import-banner" role="status" aria-live="polite" aria-atomic="true" style="display:none;">
+    <span class="external-import-banner-icon" aria-hidden="true">＋</span>
+    <span id="external-import-banner-text">释放以预览导入</span>
+  </div>
+
+  <div class="file-context-menu finder-menu" id="file-context-menu" role="menu" hidden aria-label="文件快捷操作">
+    <button class="finder-menu-item finder-menu-command" data-context-action="open" type="button" role="menuitem"><span>打开</span><kbd>⌘O</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="preview" type="button" role="menuitem"><span>快速预览</span><kbd>Space</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="get-info" type="button" role="menuitem"><span>显示简介</span><kbd>⌘I</kbd></button>
+    <div class="finder-menu-separator" role="separator"></div>
+    <button class="finder-menu-item finder-menu-command" data-context-action="copy" type="button" role="menuitem"><span>复制</span><kbd>⌘C</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="copy-path" type="button" role="menuitem"><span>复制为路径名</span><kbd>⌥⌘C</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="cut" type="button" role="menuitem"><span>剪切</span><kbd>⌘X</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="duplicate" type="button" role="menuitem"><span>制作副本</span><kbd>⌘D</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="rename" type="button" role="menuitem"><span>重命名</span><kbd>Return</kbd></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="move" type="button" role="menuitem"><span>移动到…</span></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="open-editor" type="button" role="menuitem"><span>在代码编辑器中打开</span></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="labels" type="button" role="menuitem"><span>分配标签…</span></button>
+    <div class="finder-menu-separator" role="separator"></div>
+    <button class="finder-menu-item finder-menu-command" data-context-action="favorite" type="button" role="menuitem"><span id="file-context-favorite-label">添加到收藏夹</span></button>
+    <button class="finder-menu-item finder-menu-command" data-context-action="project" type="button" role="menuitem"><span id="file-context-project-label">设为项目…</span></button>
+    <button class="finder-menu-item finder-menu-command finder-menu-danger" data-context-action="trash" type="button" role="menuitem"><span>移到废纸篓</span><kbd>⌘⌫</kbd></button>
+  </div>
+
+  <div class="smart-collection-context-menu finder-menu" id="smart-collection-context-menu" role="menu" hidden aria-label="智能集合操作">
+    <button class="finder-menu-item finder-menu-command" data-smart-collection-action="rename" type="button" role="menuitem"><span>重命名…</span></button>
+    <button class="finder-menu-item finder-menu-command" data-smart-collection-action="move-up" type="button" role="menuitem"><span>上移</span></button>
+    <button class="finder-menu-item finder-menu-command" data-smart-collection-action="move-down" type="button" role="menuitem"><span>下移</span></button>
+    <div class="finder-menu-separator" role="separator"></div>
+    <button class="finder-menu-item finder-menu-command finder-menu-danger" data-smart-collection-action="remove" type="button" role="menuitem"><span>从侧栏移除</span></button>
+  </div>
+
+  <div class="quick-look-overlay" id="quick-look-overlay" style="display:none;">
+    <section class="quick-look-panel" role="dialog" aria-modal="false" aria-labelledby="quick-look-title">
+      <header class="quick-look-header">
+        <div class="quick-look-heading">
+          <span class="quick-look-icon" id="quick-look-icon">📄</span>
+          <div class="quick-look-heading-text">
+            <h2 id="quick-look-title">预览</h2>
+            <div class="quick-look-meta" id="quick-look-meta"></div>
+          </div>
+        </div>
+        <div class="quick-look-actions">
+          <button class="btn btn-small" id="quick-look-open-btn" type="button">使用默认应用打开</button>
+          <button class="quick-look-close" id="quick-look-close-btn" type="button" aria-label="关闭预览" title="关闭 (空格或 Esc)">×</button>
+        </div>
+      </header>
+      <div class="quick-look-body" id="quick-look-body"></div>
+    </section>
+  </div>
+
+  <aside class="file-operation-history-panel" id="file-operation-history-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="file-operation-history-title" hidden>
+    <header class="file-operation-history-header">
+      <div>
+        <h2 id="file-operation-history-title">文件操作历史</h2>
+        <p id="file-operation-history-summary">只记录 GitFinder 执行的文件操作</p>
+      </div>
+      <div class="file-operation-history-header-actions">
+        <button id="file-operation-history-refresh" type="button">刷新</button>
+        <button id="file-operation-history-close" type="button" aria-label="关闭文件操作历史" title="关闭 (Esc)">×</button>
+      </div>
+    </header>
+    <div class="file-operation-history-boundary">记录保存在本机；定位操作只在 GitFinder 内打开受管目录。</div>
+    <div class="file-operation-history-list" id="file-operation-history-list" aria-live="polite"></div>
+  </aside>
+
+  <aside class="file-info-panel" id="file-info-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="file-info-title" hidden>
+    <header class="file-info-header">
+      <div class="file-info-heading">
+        <span class="file-info-icon" id="file-info-icon" aria-hidden="true">📄</span>
+        <div>
+          <h2 id="file-info-title">简介</h2>
+          <p id="file-info-subtitle"></p>
+        </div>
+      </div>
+      <button class="file-info-close" id="file-info-close" type="button" aria-label="关闭简介" title="关闭 (Esc)">×</button>
+    </header>
+    <div class="file-info-body" id="file-info-body" aria-live="polite"></div>
+    <footer class="file-info-actions">
+      <button id="file-info-open" type="button" disabled>使用默认应用打开</button>
+      <button id="file-info-reveal" type="button" disabled>在系统文件管理器中显示</button>
+    </footer>
+  </aside>
+
+  <div class="modal-overlay" id="file-label-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal file-label-modal" role="dialog" aria-modal="true" aria-labelledby="file-label-title" aria-describedby="file-label-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="file-label-title">为所选项目分配标签</h3>
+          <div class="external-import-description" id="file-label-description">文件标签只保存在本机。</div>
+        </div>
+        <button class="modal-close" id="file-label-close-btn" type="button" aria-label="关闭文件标签">×</button>
+      </header>
+      <div class="modal-body file-label-body">
+        <div class="file-label-list" id="file-label-list"></div>
+        <section class="file-label-create" aria-labelledby="file-label-create-title">
+          <h4 id="file-label-create-title">新建标签</h4>
+          <div class="file-label-create-controls">
+            <input id="file-label-create-name" type="text" maxlength="40" autocomplete="off" placeholder="例如：待处理、客户资料">
+            <input id="file-label-create-color" type="color" value="#0a84ff" aria-label="新标签颜色">
+            <button class="btn" id="file-label-create-btn" type="button">新建</button>
+          </div>
+        </section>
+        <div class="file-label-feedback" id="file-label-feedback" role="status" aria-live="polite"></div>
+      </div>
+      <footer class="modal-footer">
+        <span></span>
+        <div>
+          <button class="btn" id="file-label-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="file-label-apply-btn" type="button">应用标签</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="content-filter-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal content-filter-modal" role="dialog" aria-modal="true" aria-labelledby="content-filter-title" aria-describedby="content-filter-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="content-filter-title">更多内容筛选</h3>
+          <div class="external-import-description" id="content-filter-description">条件只影响当前标签页，不读取文件内容。</div>
+        </div>
+        <button class="modal-close" id="content-filter-close-btn" data-modal="content-filter-modal" type="button" aria-label="关闭更多内容筛选">×</button>
+      </header>
+      <div class="modal-body content-filter-body">
+        <div class="content-filter-scope" id="content-filter-scope"></div>
+        <fieldset class="content-filter-section" id="content-filter-lifecycle-section">
+          <legend>项目生命周期</legend>
+          <div class="content-filter-check-grid">
+            <label><input type="checkbox" name="content-filter-lifecycle" value="inbox">待整理</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="planned">已规划</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="active">开发中</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="validation">验证中</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="deployed">已部署</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="maintenance">维护中</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="paused">暂停</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="frozen">已冻结</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="abandoned">已废弃</label>
+            <label><input type="checkbox" name="content-filter-lifecycle" value="archived">归档</label>
+          </div>
+          <div class="content-filter-hint">选择后自动限定为项目；多选之间为“或”。</div>
+        </fieldset>
+        <fieldset class="content-filter-section" id="content-filter-git-section">
+          <legend>仓库 Git 状态</legend>
+          <div class="content-filter-check-grid content-filter-check-grid-status">
+            <label><input type="checkbox" name="content-filter-git-status" value="clean">已同步</label>
+            <label><input type="checkbox" name="content-filter-git-status" value="dirty">未提交</label>
+            <label><input type="checkbox" name="content-filter-git-status" value="ahead">未推送</label>
+            <label><input type="checkbox" name="content-filter-git-status" value="behind">需拉取</label>
+            <label><input type="checkbox" name="content-filter-git-status" value="no-remote">无远程</label>
+          </div>
+          <div class="content-filter-hint" id="content-filter-git-hint">Git 综合状态多选为“或”；“无远程”与综合状态组合时为“且”。</div>
+        </fieldset>
+        <fieldset class="content-filter-section" id="content-filter-file-label-section">
+          <legend>文件标签</legend>
+          <div class="content-filter-check-grid content-filter-file-labels" id="content-filter-file-labels"></div>
+          <div class="content-filter-hint" id="content-filter-file-label-hint">显示带有任一所选本机标签的文件或文件夹；多选之间为“或”。</div>
+        </fieldset>
+        <fieldset class="content-filter-section">
+          <legend>修改时间</legend>
+          <label class="content-filter-field" for="content-filter-modified">
+            <span>相对时间</span>
+            <select id="content-filter-modified">
+              <option value="">不限</option>
+              <option value="1">最近 24 小时</option>
+              <option value="7">最近 7 天</option>
+              <option value="30">最近 30 天</option>
+              <option value="90">最近 90 天</option>
+            </select>
+          </label>
+          <div class="content-filter-range-grid" aria-label="精确修改日期范围">
+            <label class="content-filter-range-field" for="content-filter-modified-from">
+              <span>从日期（含）</span>
+              <input id="content-filter-modified-from" type="date">
+            </label>
+            <label class="content-filter-range-field" for="content-filter-modified-to">
+              <span>到日期（含）</span>
+              <input id="content-filter-modified-to" type="date">
+            </label>
+          </div>
+          <div class="content-filter-hint">相对时间与精确日期二选一；精确日期按本机日历日期计算。</div>
+        </fieldset>
+        <fieldset class="content-filter-section" id="content-filter-file-section">
+          <legend>文件条件</legend>
+          <label class="content-filter-field" for="content-filter-extensions">
+            <span>扩展名</span>
+            <input id="content-filter-extensions" type="text" maxlength="240" autocomplete="off" spellcheck="false" placeholder="例如 ts, tsx, md 或 tar.gz">
+          </label>
+          <label class="content-filter-field" for="content-filter-size">
+            <span>大小预设</span>
+            <select id="content-filter-size">
+              <option value="any">不限</option>
+              <option value="under-1mb">小于 1 MB</option>
+              <option value="1mb-100mb">1–100 MB</option>
+              <option value="over-100mb">100 MB 及以上</option>
+            </select>
+          </label>
+          <div class="content-filter-range-grid" aria-label="精确文件大小范围">
+            <label class="content-filter-range-field" for="content-filter-size-min">
+              <span>最小（含）</span>
+              <span class="content-filter-size-input">
+                <input id="content-filter-size-min" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="不限">
+                <select id="content-filter-size-min-unit" aria-label="最小文件大小单位">
+                  <option value="b">B</option><option value="kb">KB</option><option value="mb">MB</option><option value="gb">GB</option><option value="tb">TB</option>
+                </select>
+              </span>
+            </label>
+            <label class="content-filter-range-field" for="content-filter-size-max">
+              <span>最大（含）</span>
+              <span class="content-filter-size-input">
+                <input id="content-filter-size-max" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" placeholder="不限">
+                <select id="content-filter-size-max-unit" aria-label="最大文件大小单位">
+                  <option value="b">B</option><option value="kb">KB</option><option value="mb">MB</option><option value="gb">GB</option><option value="tb">TB</option>
+                </select>
+              </span>
+            </label>
+          </div>
+          <div class="content-filter-hint" id="content-filter-file-hint">扩展名和大小仅适用于当前目录中的文件。</div>
+        </fieldset>
+        <div class="content-filter-feedback" id="content-filter-feedback" role="status" aria-live="polite"></div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn" id="content-filter-reset-btn" type="button">重置高级条件</button>
+        <div>
+          <button class="btn" id="content-filter-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="content-filter-apply-btn" type="button">应用筛选</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="directory-performance-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal modal-small directory-performance-modal" role="dialog" aria-modal="true" aria-labelledby="directory-performance-title" aria-describedby="directory-performance-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="directory-performance-title">目录性能诊断</h3>
+          <div class="external-import-description" id="directory-performance-description">只统计当前目录的本次读取与显示，保存在本次会话内存，不读取额外文件内容。</div>
+        </div>
+        <button class="modal-close" id="directory-performance-close-btn" data-modal="directory-performance-modal" type="button" aria-label="关闭目录性能诊断">×</button>
+      </header>
+      <div class="modal-body">
+        <div class="directory-performance-path" id="directory-performance-path"></div>
+        <div class="directory-performance-state" id="directory-performance-state" role="status"></div>
+        <dl class="directory-performance-grid" id="directory-performance-grid"></dl>
+        <p class="directory-performance-note">这些数字是当前设备、当前目录和本次显示方式的瞬时测量，不是跨设备性能承诺，也不会写入项目或 Git 配置。</p>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-primary" id="directory-performance-done-btn" type="button">完成</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="smart-collection-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal modal-small smart-collection-modal" role="dialog" aria-modal="true" aria-labelledby="smart-collection-title" aria-describedby="smart-collection-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="smart-collection-title">存为智能集合</h3>
+          <div class="external-import-description" id="smart-collection-description">只保存本机筛选条件，不复制文件，也不会修改 Git 或项目配置。</div>
+        </div>
+        <button class="modal-close" id="smart-collection-close-btn" type="button" aria-label="关闭智能集合窗口">×</button>
+      </header>
+      <div class="modal-body">
+        <label class="form-group" for="smart-collection-name">
+          <span>集合名称</span>
+          <input id="smart-collection-name" type="text" maxlength="60" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="smart-collection-summary" id="smart-collection-summary"></div>
+        <div class="smart-collection-feedback" id="smart-collection-feedback" role="status" aria-live="polite"></div>
+      </div>
+      <footer class="modal-footer">
+        <span></span>
+        <div>
+          <button class="btn" id="smart-collection-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="smart-collection-save-btn" type="button">保存集合</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="file-operation-modal" style="display:none;" aria-hidden="true" inert>
+    <div class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="file-operation-title" aria-describedby="file-operation-hint">
       <div class="modal-header">
-        <h3>提交变更</h3>
-        <button class="modal-close" data-modal="commit-modal">×</button>
+        <h3 id="file-operation-title">新建文件夹</h3>
+        <button class="modal-close" id="file-operation-close-btn" data-modal="file-operation-modal" type="button" aria-label="关闭">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>提交信息</label>
-          <textarea id="commit-message" rows="4" placeholder="请输入提交信息..."></textarea>
-        </div>
-        <div class="form-group">
-          <label>变更文件</label>
-          <div id="commit-files" class="commit-files"></div>
+          <label for="file-operation-input" id="file-operation-label">名称</label>
+          <input type="text" id="file-operation-input" autocomplete="off" spellcheck="false">
+          <div class="file-operation-hint" id="file-operation-hint"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" data-modal="commit-modal">取消</button>
-        <button class="btn btn-primary" id="confirm-commit-btn">提交</button>
+        <button class="btn" id="file-operation-cancel-btn" data-modal="file-operation-modal" type="button">取消</button>
+        <button class="btn btn-primary" id="file-operation-confirm-btn" type="button">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="batch-rename-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal batch-rename-modal" role="dialog" aria-modal="true" aria-labelledby="batch-rename-title" aria-describedby="batch-rename-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="batch-rename-title">重命名多个项目</h3>
+          <p id="batch-rename-description" class="batch-rename-description">先检查所有新名称；确认前不会修改文件。</p>
+        </div>
+        <button class="modal-close" id="batch-rename-close-btn" type="button" aria-label="关闭批量重命名">×</button>
+      </header>
+      <form id="batch-rename-form">
+        <div class="modal-body batch-rename-body">
+          <div class="batch-rename-rule">
+            <label for="batch-rename-mode">重命名方式</label>
+            <select id="batch-rename-mode">
+              <option value="replace">替换文本</option>
+              <option value="add">添加文本</option>
+              <option value="format">格式化名称</option>
+            </select>
+          </div>
+
+          <div class="batch-rename-fields" data-batch-mode="replace">
+            <label>查找文本<input id="batch-rename-search" type="text" autocomplete="off" spellcheck="false"></label>
+            <label>替换为<input id="batch-rename-replacement" type="text" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="batch-rename-fields" data-batch-mode="add" hidden>
+            <label>添加文本<input id="batch-rename-text" type="text" autocomplete="off" spellcheck="false"></label>
+            <label>位置<select id="batch-rename-placement"><option value="after">名称之后</option><option value="before">名称之前</option></select></label>
+          </div>
+          <div class="batch-rename-fields batch-rename-format-fields" data-batch-mode="format" hidden>
+            <label>基本名称<input id="batch-rename-format-name" type="text" autocomplete="off" spellcheck="false"></label>
+            <label>起始序号<input id="batch-rename-start" type="number" min="0" max="999999" step="1" value="1"></label>
+            <label>序号位数<input id="batch-rename-width" type="number" min="1" max="6" step="1" value="1"></label>
+          </div>
+
+          <div class="batch-rename-feedback" id="batch-rename-feedback" role="status" aria-live="polite">输入规则后将显示预览。</div>
+          <div class="batch-rename-summary" id="batch-rename-summary" hidden></div>
+          <ol class="batch-rename-preview" id="batch-rename-preview" aria-label="名称更改预览"></ol>
+          <label class="batch-rename-risk" id="batch-rename-risk" hidden>
+            <input id="batch-rename-risk-check" type="checkbox">
+            <span>我已检查项目或 Git 结构风险，并确认继续重命名。</span>
+          </label>
+        </div>
+        <footer class="modal-footer batch-rename-footer">
+          <span id="batch-rename-footer-status">尚未生成可执行预览</span>
+          <div>
+            <button class="btn" id="batch-rename-cancel-btn" type="button">取消</button>
+            <button class="btn btn-primary" id="batch-rename-apply-btn" type="submit" disabled>重命名</button>
+          </div>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="go-to-folder-modal" style="display:none;" aria-hidden="true" inert>
+    <section class="modal go-to-folder-modal" role="dialog" aria-modal="true" aria-labelledby="go-to-folder-title" aria-describedby="go-to-folder-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="go-to-folder-title">前往文件夹</h3>
+          <p id="go-to-folder-description" class="go-to-folder-description">输入受管位置内的绝对路径；支持 <code>~</code>，不会自动添加目录。</p>
+        </div>
+        <button class="modal-close" id="go-to-folder-close-btn" data-modal="go-to-folder-modal" type="button" aria-label="关闭前往文件夹">×</button>
+      </header>
+      <form id="go-to-folder-form">
+        <div class="modal-body">
+          <label class="go-to-folder-label" for="go-to-folder-input">文件夹路径</label>
+          <input id="go-to-folder-input" class="go-to-folder-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="go-to-folder-feedback">
+          <div id="go-to-folder-feedback" class="go-to-folder-feedback" role="alert" aria-live="polite"></div>
+          <div class="go-to-folder-recent" id="go-to-folder-recent" aria-label="最近位置"></div>
+        </div>
+        <footer class="modal-footer">
+          <button class="btn" id="go-to-folder-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="go-to-folder-submit-btn" type="submit">前往</button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="local-project-modal" style="display:none;">
+    <section class="modal local-project-modal" role="dialog" aria-modal="true" aria-labelledby="local-project-title">
+      <header class="modal-header">
+        <div>
+          <h3 id="local-project-title">设为项目</h3>
+          <div class="external-import-description" id="local-project-path"></div>
+        </div>
+        <button class="modal-close" id="local-project-close-btn" type="button" aria-label="关闭项目设置">×</button>
+      </header>
+      <div class="modal-body local-project-form">
+        <div class="form-group">
+          <label for="local-project-name">项目名称</label>
+          <input type="text" id="local-project-name" maxlength="160" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="local-project-description">简介</label>
+          <textarea id="local-project-description" rows="3" maxlength="2000" placeholder="项目目标或交付范围"></textarea>
+        </div>
+        <div class="local-project-form-grid">
+          <div class="form-group">
+            <label for="local-project-color">文件夹颜色</label>
+            <select id="local-project-color">
+              <option value="blue">蓝色</option><option value="purple">紫色</option><option value="green">绿色</option>
+              <option value="orange">橙色</option><option value="yellow">黄色</option><option value="red">红色</option>
+              <option value="pink">粉色</option><option value="gray">灰色</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="local-project-lifecycle">生命周期</label>
+            <select id="local-project-lifecycle">
+              <option value="inbox">待整理</option><option value="planned">已规划</option><option value="active">开发中</option>
+              <option value="validation">验证中</option><option value="deployed">已部署</option><option value="maintenance">维护中</option>
+              <option value="paused">暂停</option><option value="frozen">已冻结</option><option value="abandoned">已废弃</option><option value="archived">归档</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="local-project-excluded">排除的仓库目录</label>
+          <textarea id="local-project-excluded" rows="3" spellcheck="false" placeholder="每行一个项目内相对路径，例如 vendor/reference"></textarea>
+          <div class="file-operation-hint">仅保存相对路径；嵌套项目会自动从父项目仓库扫描中排除。</div>
+        </div>
+        <div class="local-project-boundary-note">这里只创建或更新 <code>.gitfinder/project.json</code>，不会执行 git init、暂存、提交或推送。</div>
+      </div>
+      <footer class="modal-footer">
+        <span id="local-project-feedback" role="status" aria-live="polite"></span>
+        <div>
+          <button class="btn" id="local-project-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="local-project-save-btn" type="button">创建项目</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="external-import-modal" style="display:none;">
+    <section class="modal external-import-modal" role="dialog" aria-modal="true" aria-labelledby="external-import-title" aria-describedby="external-import-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="external-import-title">导入文件</h3>
+          <div class="external-import-description" id="external-import-description">先审查复制计划，再确认导入</div>
+        </div>
+        <button class="modal-close" id="external-import-close-btn" type="button" aria-label="关闭导入预览">×</button>
+      </header>
+      <div class="modal-body external-import-body" id="external-import-body" role="status" aria-live="polite"></div>
+      <footer class="modal-footer external-import-footer">
+        <span id="external-import-feedback">尚未复制任何内容</span>
+        <div>
+          <button class="btn" id="external-import-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="external-import-apply-btn" type="button" disabled>确认导入</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="transfer-review-modal" style="display:none;">
+    <section class="modal external-import-modal transfer-review-modal" role="dialog" aria-modal="true" aria-labelledby="transfer-review-title" aria-describedby="transfer-review-description">
+      <header class="modal-header">
+        <div>
+          <h3 id="transfer-review-title">检查文件传输</h3>
+          <div class="external-import-description" id="transfer-review-description">确认卷、空间与提交方式后再执行</div>
+        </div>
+        <button class="modal-close" id="transfer-review-close-btn" type="button" aria-label="关闭传输检查">×</button>
+      </header>
+      <div class="modal-body external-import-body" id="transfer-review-body" role="status" aria-live="polite"></div>
+      <footer class="modal-footer external-import-footer">
+        <span id="transfer-review-feedback">只读检查，尚未写入任何内容</span>
+        <div>
+          <button class="btn" id="transfer-review-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="transfer-review-apply-btn" type="button" disabled>确认</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="task-status-modal" style="display:none;">
+    <section class="modal task-status-review-modal" role="dialog" aria-modal="true" aria-labelledby="task-status-review-title" aria-describedby="task-status-review-description">
+      <header class="modal-header">
+        <div class="task-status-review-heading">
+          <h3 id="task-status-review-title">确认任务状态变更</h3>
+          <div id="task-status-review-description">由 Local Project Manager 校验、备份并写入</div>
+        </div>
+        <button class="modal-close" id="task-status-close-btn" data-modal="task-status-modal" type="button" aria-label="关闭状态变更预览">×</button>
+      </header>
+      <div class="modal-body task-status-review-body" id="task-status-preview-body" role="status" aria-live="polite"></div>
+      <footer class="modal-footer task-status-review-footer">
+        <span id="task-status-review-feedback">尚未写入任何文件</span>
+        <div>
+          <button class="btn" id="task-status-cancel-btn" type="button">取消</button>
+          <button class="btn btn-primary" id="task-status-apply-btn" type="button" disabled>确认并应用</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="task-edit-modal" style="display:none;">
+    <section class="modal task-status-review-modal task-edit-modal" role="dialog" aria-modal="true" aria-labelledby="task-edit-title" aria-describedby="task-edit-description">
+      <header class="modal-header">
+        <div class="task-status-review-heading">
+          <h3 id="task-edit-title">编辑任务</h3>
+          <div id="task-edit-description">先预览字段差异，再由 Local Project Manager 备份并写入</div>
+        </div>
+        <button class="modal-close" id="task-edit-close-btn" type="button" aria-label="关闭任务编辑">×</button>
+      </header>
+      <div class="modal-body task-status-review-body task-edit-body" id="task-edit-body"></div>
+      <footer class="modal-footer task-status-review-footer">
+        <span id="task-edit-feedback" role="status" aria-live="polite">尚未写入任何文件</span>
+        <div>
+          <button class="btn" id="task-edit-cancel-btn" type="button">取消</button>
+          <button class="btn" id="task-edit-back-btn" type="button" style="display:none;">返回编辑</button>
+          <button class="btn btn-primary" id="task-edit-primary-btn" type="button">预览字段变更</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="task-create-modal" style="display:none;">
+    <section class="modal task-status-review-modal task-edit-modal" role="dialog" aria-modal="true" aria-labelledby="task-create-title" aria-describedby="task-create-description">
+      <header class="modal-header">
+        <div class="task-status-review-heading">
+          <h3 id="task-create-title">新建任务</h3>
+          <div id="task-create-description">选择权威项目、阶段与可选父任务，再审查创建计划</div>
+        </div>
+        <button class="modal-close" id="task-create-close-btn" type="button" aria-label="关闭任务创建">×</button>
+      </header>
+      <div class="modal-body task-status-review-body task-edit-body" id="task-create-body"></div>
+      <footer class="modal-footer task-status-review-footer">
+        <span id="task-create-feedback" role="status" aria-live="polite">尚未创建任务</span>
+        <div>
+          <button class="btn" id="task-create-cancel-btn" type="button">取消</button>
+          <button class="btn" id="task-create-back-btn" type="button" style="display:none;">返回编辑</button>
+          <button class="btn btn-primary" id="task-create-primary-btn" type="button">预览创建计划</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="milestone-edit-modal" style="display:none;">
+    <section class="modal task-status-review-modal task-edit-modal" role="dialog" aria-modal="true" aria-labelledby="milestone-edit-title" aria-describedby="milestone-edit-description">
+      <header class="modal-header">
+        <div class="task-status-review-heading">
+          <h3 id="milestone-edit-title">编辑里程碑</h3>
+          <div id="milestone-edit-description">先预览计划差异，再由 Local Project Manager 备份、审计并写入</div>
+        </div>
+        <button class="modal-close" id="milestone-edit-close-btn" type="button" aria-label="关闭里程碑编辑">×</button>
+      </header>
+      <div class="modal-body task-status-review-body task-edit-body" id="milestone-edit-body"></div>
+      <footer class="modal-footer task-status-review-footer">
+        <span id="milestone-edit-feedback" role="status" aria-live="polite">尚未写入任何文件</span>
+        <div>
+          <button class="btn" id="milestone-edit-cancel-btn" type="button">取消</button>
+          <button class="btn" id="milestone-edit-back-btn" type="button" style="display:none;">返回编辑</button>
+          <button class="btn btn-primary" id="milestone-edit-primary-btn" type="button">预览里程碑变更</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-overlay" id="commit-modal" style="display:none;">
+    <div class="modal commit-review-modal" role="dialog" aria-modal="true" aria-labelledby="commit-review-title">
+      <div class="modal-header">
+        <div class="commit-review-heading">
+          <h3 id="commit-review-title">提交前审查</h3>
+          <div class="commit-repo-path" id="commit-repo-path"></div>
+        </div>
+        <button class="modal-close" data-modal="commit-modal" type="button" aria-label="关闭提交审查">×</button>
+      </div>
+      <div class="modal-body commit-review-body">
+        <div class="commit-review-summary" id="commit-review-summary" role="status" aria-live="polite">正在读取工作区…</div>
+        <div class="commit-review-layout">
+          <section class="commit-file-pane" aria-label="变更文件">
+            <div class="commit-pane-toolbar">
+              <span>变更文件</span>
+              <div class="commit-pane-actions">
+                <button class="btn btn-tiny" id="commit-stage-all-btn" type="button">全部暂存</button>
+                <button class="btn btn-tiny" id="commit-unstage-all-btn" type="button">全部取消</button>
+              </div>
+            </div>
+            <div id="commit-files" class="commit-files"></div>
+          </section>
+          <section class="commit-diff-pane" aria-label="文件差异">
+            <div class="commit-diff-header">
+              <div class="commit-diff-heading">
+                <div class="commit-diff-title" id="commit-diff-title">选择文件查看差异</div>
+                <span class="commit-diff-scope" id="commit-diff-scope"></span>
+              </div>
+              <button class="btn btn-tiny" id="commit-line-preview-btn" type="button" hidden>预览所选行</button>
+            </div>
+            <div class="commit-diff-content" id="commit-diff-content" tabindex="0">从左侧选择一个变更文件。</div>
+            <div class="commit-line-preview" id="commit-line-preview" role="status" aria-live="polite" hidden>
+              <div>
+                <strong id="commit-line-preview-title">所选行预览</strong>
+                <div id="commit-line-preview-summary"></div>
+              </div>
+              <div class="commit-line-preview-actions">
+                <button class="btn btn-tiny" id="commit-line-preview-cancel-btn" type="button">返回选择</button>
+                <button class="btn btn-tiny btn-primary" id="commit-line-apply-btn" type="button">应用所选行</button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="commit-message-section">
+          <div class="commit-message-heading">
+            <label for="commit-message">提交信息</label>
+            <label class="commit-amend-toggle" for="commit-amend-toggle">
+              <input id="commit-amend-toggle" type="checkbox">
+              <span>修订最近提交</span>
+            </label>
+          </div>
+          <div class="commit-amend-context" id="commit-amend-context" role="status" aria-live="polite" hidden></div>
+          <textarea id="commit-message" rows="3" maxlength="2000" placeholder="描述已暂存变更的目的…"></textarea>
+          <div class="commit-amend-preview" id="commit-amend-preview" hidden></div>
+          <div class="commit-review-feedback" id="commit-review-feedback" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="modal-footer commit-review-footer">
+        <span class="commit-scope-footer" id="commit-scope-footer">尚未选择提交文件</span>
+        <div class="commit-footer-actions">
+          <button class="btn" data-modal="commit-modal" type="button">取消</button>
+          <button class="btn btn-primary" id="confirm-commit-btn" type="button" disabled>提交已暂存内容</button>
+        </div>
       </div>
     </div>
   </div>
@@ -578,9 +1316,55 @@
     </div>
   </div>
 
+  <script src="../shared/repoMetrics.js"></script>
+  <script src="../shared/gitPatchSelection.js"></script>
+  <script src="../shared/semanticColors.js"></script>
+  <script src="../shared/relationshipGraphModel.js"></script>
+  <script src="../shared/projectShortcuts.js"></script>
+  <script src="../shared/batchRename.js"></script>
+  <script src="../shared/fileLabels.js"></script>
+  <script src="scripts/contentQuery.js"></script>
+  <script src="scripts/smartCollections.js"></script>
+  <script src="scripts/fileBrowser.js"></script>
+  <script src="scripts/contentFilterController.js"></script>
+  <script src="scripts/smartCollectionsController.js"></script>
+  <script src="scripts/projectShortcutsController.js"></script>
+  <script src="scripts/directoryViewPreferences.js"></script>
+  <script src="scripts/directoryNavigationController.js"></script>
+  <script src="scripts/sidebarTreeController.js"></script>
+  <script src="scripts/repositoryRootScanner.js"></script>
+  <script src="scripts/unavailableLocationController.js"></script>
+  <script src="scripts/progressiveDirectoryRender.js"></script>
+  <script src="scripts/virtualDirectoryWindow.js"></script>
+  <script src="scripts/directoryPerformance.js"></script>
+  <script src="scripts/directoryPerformanceController.js"></script>
+  <script src="scripts/directorySelectionController.js"></script>
+  <script src="scripts/editActionRouter.js"></script>
+  <script src="scripts/fileOperationController.js"></script>
+  <script src="scripts/fileOperationDialogController.js"></script>
+  <script src="scripts/fileActionBarController.js"></script>
+  <script src="scripts/fileLabelController.js"></script>
+  <script src="scripts/fileSelectionDetailController.js"></script>
+  <script src="scripts/repositoryDetailController.js"></script>
+  <script src="scripts/fileOperationHistoryController.js"></script>
+  <script src="scripts/fileInfoController.js"></script>
+  <script src="scripts/batchRenameController.js"></script>
+  <script src="scripts/fileTransfers.js"></script>
+  <script src="scripts/fileTransferController.js"></script>
+  <script src="scripts/syntaxHighlight.js"></script>
+  <script src="scripts/quickLook.js"></script>
+  <script src="scripts/quickLookPaging.js"></script>
+  <script src="scripts/quickLookController.js"></script>
+  <script src="scripts/galleryView.js"></script>
+  <script src="scripts/galleryThumbnails.js"></script>
+  <script src="scripts/workspaceTabs.js"></script>
+  <script src="scripts/repoStatusBatch.js"></script>
+  <script src="scripts/projectTaskRelations.js"></script>
+  <script src="scripts/relationshipBoardController.js"></script>
   <script src="scripts/git.js"></script>
   <script src="scripts/terminal.js"></script>
   <script src="scripts/app.js"></script>
+  <script src="scripts/projectTasks.js"></script>
   <script src="scripts/sidebar.js"></script>
   <script src="scripts/content.js"></script>
   <script src="scripts/detail.js"></script>

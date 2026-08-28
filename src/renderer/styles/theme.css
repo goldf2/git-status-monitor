@@ -22,6 +22,20 @@
   --modal-overlay: rgba(0, 0, 0, 0.5);
   --scrollbar-thumb: rgba(0, 0, 0, 0.25);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
+  --folder-color: #4f7fa8;
+  --project-folder-default-color: #0a84ff;
+  --repository-color: #7a4fd0;
+  --repository-mark-color: #ffffff;
+  --lifecycle-inbox: #8e8e93;
+  --lifecycle-planned: #5e5ce6;
+  --lifecycle-active: #2f9e54;
+  --lifecycle-validation: #c47a00;
+  --lifecycle-deployed: #007aff;
+  --lifecycle-maintenance: #168aad;
+  --lifecycle-paused: #d97706;
+  --lifecycle-frozen: #6b7280;
+  --lifecycle-abandoned: #d63b35;
+  --lifecycle-archived: #636366;
 }
 
 /* ============================================================
@@ -102,6 +116,10 @@
   --status-behind: #8250df;
   --status-none: #848d97;
   --status-no-remote: #b08800;
+  --folder-color: #4f7fa8;
+  --project-folder-default-color: #0a84ff;
+  --repository-color: #7a4fd0;
+  --repository-mark-color: #ffffff;
 }
 [data-effective-mode="dark"] {
   --status-clean: #4cc26e;
@@ -110,6 +128,10 @@
   --status-behind: #a371f7;
   --status-none: #6e7681;
   --status-no-remote: #e3b341;
+  --folder-color: #78a8d2;
+  --project-folder-default-color: #409cff;
+  --repository-color: #b59ae8;
+  --repository-mark-color: #241b39;
 }
 
 /* ============================================================

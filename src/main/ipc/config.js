@@ -1,5 +1,78 @@
-const { ipcMain } = require('electron');
 const configService = require('../services/configService');
+const directoryGrantService = require('../services/directoryGrantService');
+const fileService = require('../services/fileService');
+const FileLabels = require('../../shared/fileLabels');
+const { registerTrustedHandler } = require('./security');
+const ipcMain = { handle: registerTrustedHandler };
+
+function resolveManagedFileLabelPaths(candidatePaths, resolver = fileService) {
+  if (!Array.isArray(candidatePaths) || candidatePaths.length === 0 || candidatePaths.length > 2000) {
+    throw new Error('文件标签需要 1–2000 个受管文件或文件夹');
+  }
+  const resolvedPaths = [];
+  const seen = new Set();
+  for (const candidatePath of candidatePaths) {
+    const resolved = resolver.resolveWorkspacePath(candidatePath);
+    if (!resolved.ok || !['file', 'directory'].includes(resolved.type)) {
+      throw new Error(resolved.message || '文件标签只适用于受管文件或文件夹');
+    }
+    if (!seen.has(resolved.path)) {
+      seen.add(resolved.path);
+      resolvedPaths.push(resolved.path);
+    }
+  }
+  return resolvedPaths;
+}
+
+function resolveFileLabelCollection(labelIds, options = {}) {
+  const service = options.configService || configService;
+  const resolver = options.fileService || fileService;
+  const maxItems = Math.max(1, Math.min(2000, Number(options.maxItems) || 2000));
+  const store = FileLabels.normalizeStore(service.getFileLabels());
+  const knownIds = new Set(store.labels.map(label => label.id));
+  const selectedIds = [...new Set((Array.isArray(labelIds) ? labelIds : [])
+    .map(FileLabels.normalizeId)
+    .filter(Boolean))];
+  if (!selectedIds.length || selectedIds.length > FileLabels.MAX_LABELS) {
+    throw new Error(`文件标签集合需要 1–${FileLabels.MAX_LABELS} 个有效标签`);
+  }
+  if (selectedIds.some(id => !knownIds.has(id))) throw new Error('文件标签集合包含不存在的标签');
+
+  const selectedSet = new Set(selectedIds);
+  const labelsById = new Map(store.labels.map(label => [label.id, label]));
+  const candidatePaths = FileLabels.pathsForLabelIds(store, selectedIds);
+  const items = [];
+  let unavailableCount = 0;
+  const visibleCandidates = candidatePaths.slice(0, maxItems);
+  for (const candidatePath of visibleCandidates) {
+    const resolved = resolver.resolveWorkspacePath(candidatePath);
+    if (!resolved?.ok || !['file', 'directory'].includes(resolved.type)) {
+      unavailableCount += 1;
+      continue;
+    }
+    const info = resolver.getFileInfo(resolved.path);
+    if (!info || !['file', 'directory'].includes(info.type)) {
+      unavailableCount += 1;
+      continue;
+    }
+    const assigned = (store.assignments[candidatePath] || [])
+      .map(id => labelsById.get(id))
+      .filter(Boolean);
+    items.push({
+      ...info,
+      fileLabels: assigned,
+      gitStatus: info.isGitRepo ? { overallStatus: 'none', branch: 'Git' } : null
+    });
+  }
+  return {
+    labelIds: selectedIds,
+    labels: store.labels.filter(label => selectedSet.has(label.id)),
+    items,
+    totalAssigned: candidatePaths.length,
+    unavailableCount,
+    truncatedCount: Math.max(0, candidatePaths.length - visibleCandidates.length)
+  };
+}
 
 function registerConfigIPC() {
   ipcMain.handle('config:get', async (event, key) => {
@@ -7,11 +80,15 @@ function registerConfigIPC() {
   });
 
   ipcMain.handle('config:set', async (event, key, value) => {
-    return configService.set(key, value);
+    return configService.setRendererPreference(key, value);
   });
 
   ipcMain.handle('config:getConfig', async () => {
     return configService.getConfig();
+  });
+
+  ipcMain.handle('config:getTransactionRecoveryStatus', async () => {
+    return configService.getConfigTransactionRecoveryStatus();
   });
 
   ipcMain.handle('config:getFavorites', async () => {
@@ -22,6 +99,10 @@ function registerConfigIPC() {
     return configService.addFavorite(item);
   });
 
+  ipcMain.handle('config:toggleFavoriteDirectory', async (event, directoryPath) => {
+    return configService.toggleFavoriteDirectory(directoryPath);
+  });
+
   ipcMain.handle('config:removeFavorite', async (event, id) => {
     return configService.removeFavorite(id);
   });
@@ -30,8 +111,9 @@ function registerConfigIPC() {
     return configService.getTreeRoots();
   });
 
-  ipcMain.handle('config:addTreeRoot', async (event, dirPath, name) => {
-    return configService.addTreeRoot(dirPath, name);
+  ipcMain.handle('config:addTreeRoot', async (event, dirPath, name, grantToken) => {
+    const grantedPath = directoryGrantService.consume(dirPath, grantToken);
+    return configService.addTreeRoot(grantedPath, name);
   });
 
   ipcMain.handle('config:removeTreeRoot', async (event, dirPath) => {
@@ -40,6 +122,34 @@ function registerConfigIPC() {
 
   ipcMain.handle('config:updateTreeRoot', async (event, dirPath, updates) => {
     return configService.updateTreeRoot(dirPath, updates);
+  });
+
+  ipcMain.handle('fileLabels:get', async () => {
+    return configService.getFileLabels();
+  });
+
+  ipcMain.handle('fileLabels:getForPaths', async (event, candidatePaths) => {
+    return configService.getFileLabelsForPaths(resolveManagedFileLabelPaths(candidatePaths));
+  });
+
+  ipcMain.handle('fileLabels:getCollection', async (event, labelIds) => {
+    return resolveFileLabelCollection(labelIds);
+  });
+
+  ipcMain.handle('fileLabels:create', async (event, name, color) => {
+    return configService.createFileLabel(name, color);
+  });
+
+  ipcMain.handle('fileLabels:update', async (event, labelId, updates) => {
+    return configService.updateFileLabel(labelId, updates);
+  });
+
+  ipcMain.handle('fileLabels:delete', async (event, labelId) => {
+    return configService.deleteFileLabel(labelId);
+  });
+
+  ipcMain.handle('fileLabels:updateAssignments', async (event, candidatePaths, changes) => {
+    return configService.updateFileLabelAssignments(resolveManagedFileLabelPaths(candidatePaths), changes);
   });
 
   ipcMain.handle('groups:get', async () => {
@@ -164,4 +274,4 @@ function registerConfigIPC() {
   });
 }
 
-module.exports = { registerConfigIPC };
+module.exports = { registerConfigIPC, resolveFileLabelCollection, resolveManagedFileLabelPaths };

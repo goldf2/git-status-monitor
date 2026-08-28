@@ -1,4 +1,4 @@
-# Git Status Monitor 上传规范
+# GitFinder 上传规范
 
 本文规定本项目提交到 Git 仓库和发布桌面安装包时的文件范围，避免把依赖、构建产物、本机配置或大文件写入 Git 历史。
 
@@ -35,14 +35,17 @@
 1. 确认工作区源码已提交，并记录发布对应的 commit。
 2. 创建版本标签，例如 `v1.0.1`。
 3. 推送源码和标签到 GitHub。
-4. GitHub Actions 的 `Release` workflow 会自动执行 `npm ci` 和 `npm run dist`。
-5. workflow 会创建/更新对应 Release，并上传 `dist/` 中的 ZIP 和 `latest-mac.yml`；自动更新缺少任意一个都无法工作。
-6. Release 说明由 GitHub 自动生成，必要时再补充主要变更、系统和芯片架构。
+4. GitHub Actions 的 `Release` workflow 会自动执行测试、正式源码门禁、Developer ID 签名、Apple 公证与正式产物门禁；缺少凭据或任一门禁失败时不得上传附件。
+5. workflow 只在验证报告明确为 `mode: official`、`eligibleForDistribution: true` 且 `issues: []` 后创建/更新 Release。
+6. Release 必须上传 ZIP、`latest-mac.yml` 与 `release-verification.json`；自动更新缺少前两项无法工作，缺少验证报告则无法审计分发资格。
+7. Release 说明由 GitHub 自动生成，必要时再补充主要变更、系统和芯片架构。
 
 推荐发布附件命名：
 
 ```text
-Git Status Monitor-<版本号>-arm64-mac.zip
+GitFinder-<版本号>-arm64-mac.zip
+latest-mac.yml
+release-verification.json
 ```
 
 ## 四、提交前检查
@@ -61,6 +64,8 @@ git check-ignore -v node_modules dist .trae .DS_Store
 - 没有 `.env`、密钥、Token、密码和带有个人本机路径的运行配置。
 - 改动只包含本次任务相关文件。
 - 功能修改已经完成相应测试或手动验证。
+- 不把默认 `npm run dist` 生成的 ad-hoc 开发包上传为正式 Release；正式附件只能来自标签 CI 的签名与公证门禁。
+- GitHub Secrets、`.p12`、Keychain、App 专用密码和 Team 私钥不进入 Git 历史或 Release 附件。
 
 可使用以下命令检查已被 Git 跟踪的大文件：
 

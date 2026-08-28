@@ -228,7 +228,9 @@ const Terminal = {
       return;
     }
     try {
-      await window.gitFinder.terminal.openExternal(this.cwd);
+      const preferred = await window.gitFinder.config.get('preferredTerminal');
+      const result = await window.gitFinder.terminal.openExternal(this.cwd, preferred);
+      if (!result?.opened) this._appendOutput('未找到可用终端，请在设置中选择程序', 'stderr');
     } catch (e) {
       this._appendOutput(`打开外部终端失败: ${e.message}`, 'stderr');
     }

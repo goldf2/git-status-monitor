@@ -248,7 +248,7 @@ async function main() {
     case 'server':
       console.log('🚀 启动Git状态监控服务...');
       console.log('访问: http://localhost:3001');
-      require('./server');
+      await require('./server').startServer();
       break;
       
     case 'status':

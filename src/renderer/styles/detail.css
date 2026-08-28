@@ -25,6 +25,37 @@
   opacity: 0.4;
 }
 
+.detail-empty-icon-semantic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  opacity: 1;
+}
+
+.detail-empty-kind-icon {
+  width: 52px;
+  height: 44px;
+}
+
+.detail-empty-kind-icon.file-kind-file,
+.detail-empty-kind-icon.file-kind-symlink {
+  width: 40px;
+  height: 44px;
+}
+
+.detail-empty-kind-icon .file-kind-git-badge {
+  right: -6px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+}
+
+.detail-empty-kind-icon .file-kind-git-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
 .detail-empty-text {
   font-size: 13px;
 }
@@ -36,6 +67,13 @@
   font-size: 11px;
   line-height: 1.45;
   word-break: break-all;
+}
+
+.detail-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .detail-content {
@@ -844,6 +882,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+.terminal-security-note {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  background: color-mix(in srgb, var(--warning-color, #d97706) 7%, transparent);
 }
 
 .terminal-panel {

@@ -1,11 +1,11 @@
 const express = require('express');
-const cors = require('cors');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const port = 3001;
+const DEFAULT_PORT = 3001;
+const DEFAULT_HOST = '127.0.0.1';
 
 const CACHE_FILE = path.join(__dirname, '.git-monitor-cache.json');
 
@@ -36,9 +36,17 @@ function saveCache(data) {
   }
 }
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+app.disable('x-powered-by');
+app.use(express.json({ limit: '100kb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+function requireWebWrite(req, res, next) {
+  if (process.env.GITFINDER_WEB_WRITE_ENABLED === '1') return next();
+  return res.status(403).json({
+    success: false,
+    error: 'Web 写操作默认关闭，请在可信本机环境显式启用'
+  });
+}
 
 function isGitRepo(dir) {
   try {
@@ -272,7 +280,7 @@ app.post('/api/refresh', (req, res) => {
   res.json({ statuses });
 });
 
-app.post('/api/action', (req, res) => {
+app.post('/api/action', requireWebWrite, (req, res) => {
   const { path, action } = req.body;
   if (!path || !action) {
     return res.status(400).json({ error: '参数不能为空' });
@@ -282,16 +290,16 @@ app.post('/api/action', (req, res) => {
     let result;
     switch (action) {
       case 'pull':
-        result = execSync('git pull', { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
+        result = execFileSync('git', ['pull'], { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
         break;
       case 'push':
-        result = execSync('git push', { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
+        result = execFileSync('git', ['push'], { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
         break;
       case 'fetch':
-        result = execSync('git fetch origin', { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
+        result = execFileSync('git', ['fetch', 'origin'], { cwd: path, encoding: 'utf-8', timeout: 30000 }).trim();
         break;
       case 'status':
-        result = execSync('git status', { cwd: path, encoding: 'utf-8', timeout: 10000 }).trim();
+        result = execFileSync('git', ['status'], { cwd: path, encoding: 'utf-8', timeout: 10000 }).trim();
         break;
       default:
         return res.status(400).json({ error: '不支持的操作' });
@@ -302,15 +310,15 @@ app.post('/api/action', (req, res) => {
   }
 });
 
-app.post('/api/commit', (req, res) => {
+app.post('/api/commit', requireWebWrite, (req, res) => {
   const { path, message } = req.body;
   if (!path || !message) {
     return res.status(400).json({ error: '路径和提交信息不能为空' });
   }
 
   try {
-    execSync('git add .', { cwd: path, encoding: 'utf-8', timeout: 10000 });
-    const result = execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: path, encoding: 'utf-8', timeout: 10000 }).trim();
+    execFileSync('git', ['add', '--all'], { cwd: path, encoding: 'utf-8', timeout: 10000 });
+    const result = execFileSync('git', ['commit', '-m', message], { cwd: path, encoding: 'utf-8', timeout: 10000 }).trim();
     res.json({ success: true, result });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -319,14 +327,14 @@ app.post('/api/commit', (req, res) => {
 
 app.get('/api/log', (req, res) => {
   const repoPath = req.query.path;
-  const limit = parseInt(req.query.limit) || 20;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 200);
   
   if (!repoPath) {
     return res.status(400).json({ error: '路径不能为空' });
   }
 
   try {
-    const logOutput = execSync(`git log --oneline -${limit} --format="%h|%s|%an|%ad|%ae" --date=iso`, { 
+    const logOutput = execFileSync('git', ['log', '-n', String(limit), '--format=%h|%s|%an|%ad|%ae', '--date=iso'], {
       cwd: repoPath, 
       encoding: 'utf-8', 
       timeout: 5000 
@@ -377,17 +385,23 @@ app.post('/api/remote', (req, res) => {
     let result;
     switch (action) {
       case 'get':
-        result = execSync('git remote -v', { cwd: path, encoding: 'utf-8', timeout: 5000 }).trim();
+        result = execFileSync('git', ['remote', '-v'], { cwd: path, encoding: 'utf-8', timeout: 5000 }).trim();
         break;
       case 'set':
+        if (process.env.GITFINDER_WEB_WRITE_ENABLED !== '1') {
+          return requireWebWrite(req, res, () => {});
+        }
         if (!remoteUrl) {
           return res.status(400).json({ error: '远程URL不能为空' });
         }
         const remote = remoteName || 'origin';
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(remote)) {
+          return res.status(400).json({ error: '远程仓库名称无效' });
+        }
         try {
-          execSync(`git remote set-url ${remote} "${remoteUrl}"`, { cwd: path, encoding: 'utf-8', timeout: 5000 });
+          execFileSync('git', ['remote', 'set-url', remote, remoteUrl], { cwd: path, encoding: 'utf-8', timeout: 5000 });
         } catch {
-          execSync(`git remote add ${remote} "${remoteUrl}"`, { cwd: path, encoding: 'utf-8', timeout: 5000 });
+          execFileSync('git', ['remote', 'add', remote, remoteUrl], { cwd: path, encoding: 'utf-8', timeout: 5000 });
         }
         result = `远程仓库 ${remote} 已设置为: ${remoteUrl}`;
         break;
@@ -402,10 +416,23 @@ app.post('/api/remote', (req, res) => {
   }
 });
 
+function startServer({ port = DEFAULT_PORT, host = DEFAULT_HOST } = {}) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host);
+    server.once('listening', () => resolve(server));
+    server.once('error', reject);
+  });
+}
+
 module.exports = app;
+module.exports.startServer = startServer;
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`Git状态监控服务运行在 http://localhost:${port}`);
+  startServer().then(server => {
+    const address = server.address();
+    console.log(`Git状态监控服务运行在 http://${address.address}:${address.port}`);
+  }).catch(error => {
+    console.error('Git状态监控服务启动失败:', error.message);
+    process.exitCode = 1;
   });
 }

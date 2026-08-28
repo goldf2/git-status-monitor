@@ -9,14 +9,21 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: gitfinder-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   macos:
     name: Build macOS release
     runs-on: macos-14
+    if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,8 +34,105 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build release assets
+      - name: Test and validate source
+        run: npm run check
+
+      - name: Verify release tag and source identity
+        env:
+          GITFINDER_EXPECTED_TAG: ${{ github.ref_name }}
+        run: node scripts/verify-release.js --phase source --mode official --expected-tag "$GITFINDER_EXPECTED_TAG"
+
+      - name: Validate signing secrets
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            MACOS_CERTIFICATE_P12 \
+            MACOS_CERTIFICATE_PASSWORD \
+            MACOS_SIGNING_IDENTITY \
+            APPLE_ID \
+            APPLE_APP_SPECIFIC_PASSWORD \
+            APPLE_TEAM_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required release secret: ${name}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          case "$MACOS_SIGNING_IDENTITY" in
+            "Developer ID Application:"*) ;;
+            *)
+              echo "::error::MACOS_SIGNING_IDENTITY must be a Developer ID Application identity."
+              exit 1
+              ;;
+          esac
+
+      - name: Import Developer ID certificate and notarization profile
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/gitfinder-signing.p12"
+          keychain_path="$RUNNER_TEMP/gitfinder-signing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          notary_profile="gitfinder-notary-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "GITFINDER_CODESIGN_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          echo "GITFINDER_NOTARY_KEYCHAIN_PROFILE=$notary_profile" >> "$GITHUB_ENV"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12" \
+            | openssl base64 -d -A -out "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path" \
+            | grep -F "$MACOS_SIGNING_IDENTITY"
+
+          xcrun notarytool store-credentials "$notary_profile" \
+            --keychain "$keychain_path" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --validate
+
+          rm -f "$certificate_path"
+
+      - name: Build, sign, notarize, and verify release assets
+        env:
+          GITFINDER_RELEASE_MODE: official
+          GITFINDER_EXPECTED_TAG: ${{ github.ref_name }}
+          GITFINDER_CODESIGN_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run dist
+
+      - name: Require distributable verification report
+        run: |
+          node -e "const r=require('./dist/release-verification.json'); if(r.mode!=='official'||r.eligibleForDistribution!==true||r.issues.length) process.exit(1); console.log('Verified distributable GitFinder', r.version, r.commit)"
 
       - name: Upload GitHub Release assets
         uses: softprops/action-gh-release@v2
@@ -37,5 +141,100 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            dist/Git Status Monitor-*-arm64-mac.zip
+            dist/GitFinder-*-arm64-mac.zip
             dist/latest-mac.yml
+            dist/release-verification.json
+
+      - name: Remove temporary signing keychain
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/gitfinder-signing.p12"
+          if [ -n "${GITFINDER_CODESIGN_KEYCHAIN:-}" ]; then
+            security delete-keychain "$GITFINDER_CODESIGN_KEYCHAIN" || true
+          fi
+
+  windows:
+    name: Build and verify Windows x64
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test and validate Windows-adapted source
+        run: npm run check
+
+      - name: Build NSIS installer and ZIP on Windows
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: npm run pack:win
+
+      - name: Verify project model, Git, file operations, and Recycle Bin
+        run: npm run verify:windows-runtime
+
+      - name: Verify unpacked app, NSIS install, installed startup, uninstall, and hashes
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          ./scripts/verify-windows-package.ps1 -Version $version
+
+      - name: Classify signed release or unsigned test build
+        id: release_state
+        shell: pwsh
+        run: |
+          $metadata = Get-Content ./dist/windows-release-metadata.json -Raw | ConvertFrom-Json
+          $install = Get-Content ./dist/windows-install-verification.json -Raw | ConvertFrom-Json
+          if ($metadata.version -ne $install.version -or $metadata.architecture -ne 'x64') {
+            throw 'Windows verification reports do not match the build identity'
+          }
+          $signed = ($metadata.signatureStatus -eq 'Valid' -and $install.signatureStatus -eq 'Valid')
+          $channel = if ($signed) { 'signed-release-candidate' } else { 'unsigned-test-build' }
+          "signed=$($signed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          if (-not $signed) {
+            Write-Warning 'Windows artifact is an unsigned test build. SmartScreen may warn; it will not be uploaded as a stable GitHub Release asset.'
+          }
+
+      - name: Upload verified Windows CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitFinder-Windows-x64-${{ steps.release_state.outputs.channel }}
+          if-no-files-found: error
+          path: |
+            dist/GitFinder-*-x64-win-setup.exe
+            dist/GitFinder-*-x64-win.zip
+            dist/latest.yml
+            dist/SHA256SUMS-windows.txt
+            dist/windows-release-metadata.json
+            dist/windows-runtime-verification.json
+            dist/windows-install-verification.json
+
+      - name: Upload signed Windows assets to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && steps.release_state.outputs.signed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/GitFinder-*-x64-win-setup.exe
+            dist/GitFinder-*-x64-win.zip
+            dist/latest.yml
+            dist/SHA256SUMS-windows.txt
+            dist/windows-release-metadata.json
+            dist/windows-runtime-verification.json
+            dist/windows-install-verification.json

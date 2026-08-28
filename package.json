@@ -1,6 +1,6 @@
 {
   "name": "git-status-monitor",
-  "version": "1.1.0",
+  "version": "1.30.0",
   "description": "GitFinder - 智能Git项目管理器",
   "main": "main.js",
   "productName": "GitFinder",
@@ -8,21 +8,26 @@
     "git-monitor": "./cli.js"
   },
   "scripts": {
+    "test": "node --test test/**/*.test.js",
+    "check": "npm test && node test/check-syntax.js",
     "start": "node server.js",
     "dev": "node server.js",
     "cli": "node cli.js",
     "scan": "node cli.js scan",
     "status": "node cli.js status",
+    "verify:git-batch": "node scripts/verify-git-batch-performance.js",
+    "verify:icons": "node scripts/verify-icon-assets.js",
+    "verify:release-source": "node scripts/verify-release.js --phase source --mode development",
+    "verify:release": "node scripts/verify-release.js --phase artifact --mode development --report dist/release-verification.json",
+    "verify:windows-runtime": "electron scripts/verify-windows-runtime.js",
     "electron": "electron .",
     "pack": "bash scripts/build-mac.sh",
     "dist": "bash scripts/build-mac.sh",
-    "pack:win": "bash scripts/build-win.sh",
-    "dist:builder": "electron-builder --mac --publish never",
-    "publish": "electron-builder --mac -p always"
+    "pack:win": "node scripts/build-win.js"
   },
   "build": {
-    "appId": "com.git-status-monitor.app",
-    "productName": "Git Status Monitor",
+    "appId": "com.gitfinder.app",
+    "productName": "GitFinder",
     "directories": {
       "output": "dist",
       "app": "."
@@ -55,10 +60,31 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "zip"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "public/icon.ico"
+      "icon": "public/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}-win.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-${arch}-win-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GitFinder",
+      "uninstallDisplayName": "GitFinder ${version}"
     },
     "linux": {
       "target": [
@@ -69,13 +95,12 @@
     }
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "electron-updater": "^6.8.9",
     "express": "^4.18.2"
   },
   "devDependencies": {
-    "@electron/packager": "^20.0.2",
-    "electron": "^42.5.1",
+    "@electron/packager": "^20.3.0",
+    "electron": "^42.10.1",
     "electron-builder": "^26.15.3"
   },
   "keywords": [

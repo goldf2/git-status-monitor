@@ -119,6 +119,235 @@
   flex-shrink: 0;
 }
 
+.sidebar-kind-icon {
+  width: 18px;
+  height: 16px;
+}
+
+.sidebar-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-label-sidebar-item {
+  width: calc(100% - 8px);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+}
+
+.file-label-sidebar-item:active {
+  transform: scale(0.985);
+}
+
+.file-label-sidebar-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: var(--file-label-color, var(--accent-primary));
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, #000 22%, transparent);
+}
+
+.file-label-sidebar-empty {
+  padding: 5px 16px 6px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.project-shortcut-all,
+.project-shortcut-open {
+  width: calc(100% - 8px);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+}
+
+.project-shortcut-all.active,
+.project-shortcut-row.active .project-shortcut-open {
+  background: var(--accent-bg);
+  color: var(--accent-primary);
+  border-left-color: var(--accent-primary);
+}
+
+.project-shortcut-all-icon {
+  color: var(--accent-primary);
+  font-size: 16px;
+}
+
+.project-shortcut-heading {
+  padding: 7px 16px 2px 34px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.35px;
+}
+
+.project-shortcut-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+}
+
+.project-shortcut-row .project-shortcut-open {
+  width: calc(100% - 4px);
+  padding-right: 4px;
+}
+
+.project-shortcut-row.is-unavailable .project-shortcut-open {
+  color: var(--text-tertiary);
+}
+
+.project-shortcut-status {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 9px;
+}
+
+.project-shortcut-pin {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 10px;
+  opacity: 0;
+}
+
+.project-shortcut-row:hover .project-shortcut-pin,
+.project-shortcut-pin:focus-visible,
+.project-shortcut-pin.active {
+  opacity: 1;
+}
+
+.project-shortcut-pin:hover {
+  background: var(--bg-input);
+  color: var(--accent-primary);
+}
+
+.smart-collection-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 2px;
+  margin: 1px 6px;
+  border-radius: 7px;
+}
+
+.smart-collection-item:hover,
+.smart-collection-item.active {
+  background: var(--bg-hover);
+}
+
+.smart-collection-item.active {
+  background: var(--accent-bg);
+}
+
+.smart-collection-item.dragging {
+  opacity: 0.48;
+}
+
+.smart-collection-item.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent-primary);
+}
+
+.smart-collection-item.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent-primary);
+}
+
+.smart-collection-open,
+.smart-collection-more {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.smart-collection-open {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 5px 6px 8px;
+  text-align: left;
+}
+
+.smart-collection-item[draggable="true"] .smart-collection-open {
+  cursor: grab;
+}
+
+.smart-collection-item.dragging .smart-collection-open {
+  cursor: grabbing;
+}
+
+.smart-collection-icon {
+  width: 18px;
+  flex: 0 0 18px;
+  color: var(--accent-primary);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.smart-collection-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smart-collection-more {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  opacity: 0;
+}
+
+.smart-collection-item:hover .smart-collection-more,
+.smart-collection-more:focus-visible,
+.smart-collection-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.smart-collection-open:focus-visible,
+.smart-collection-more:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.smart-collection-more:hover,
+.smart-collection-more[aria-expanded="true"] {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.smart-collection-context-menu {
+  position: fixed;
+  z-index: 2200;
+  min-width: 176px;
+}
+
+.sidebar-item.is-unavailable {
+  opacity: 0.55;
+}
+
+.sidebar-item.is-unavailable .sidebar-item-name {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
 .sidebar-item .folder-icon {
   color: var(--accent-primary);
 }
@@ -392,8 +621,8 @@
   color: var(--accent-primary);
 }
 
-/* 根目录列表项(访达式) */
-.tree-node.is-volume {
+/* 用户显式添加的受管根(访达式“位置”) */
+.tree-node.is-root {
   font-weight: 600;
   margin-top: 2px;
 }
@@ -496,9 +725,22 @@
   color: var(--accent-primary);
 }
 
+.tree-node.is-hidden {
+  opacity: 0.62;
+}
+
+.tree-node.is-hidden.selected {
+  opacity: 1;
+}
+
 .tree-node-toggle {
   width: 14px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   text-align: center;
+  font: inherit;
   font-size: 10px;
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -510,9 +752,43 @@
   color: var(--text-primary);
 }
 
+.tree-node-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -1px;
+  border-radius: 3px;
+}
+
+.tree-node-toggle-placeholder {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.tree-node.is-unavailable {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.tree-node.is-unavailable:hover {
+  background: transparent;
+}
+
+.tree-error-row {
+  padding: 2px 6px;
+  color: var(--status-dirty);
+  font-size: 10px;
+}
+
 .tree-node-icon {
-  font-size: 13px;
+  width: 16px;
+  height: 14px;
   flex-shrink: 0;
+}
+
+.tree-volume-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
 }
 
 .tree-node-name {
@@ -529,22 +805,6 @@
   padding: 0 5px;
   border-radius: 8px;
   flex-shrink: 0;
-}
-
-.tree-node.is-git .tree-node-icon {
-  color: var(--status-clean);
-}
-
-.tree-node.is-git {
-  border-radius: 6px;
-}
-
-.tree-node.is-git:hover {
-  background: var(--accent-bg);
-}
-
-.tree-node.is-git.selected {
-  background: var(--accent-bg);
 }
 
 .tree-git-status {
