@@ -755,6 +755,12 @@
         return;
       }
 
+      const locateEntityId = event.target.closest('[data-relationship-locate-entity]')?.dataset.relationshipLocateEntity;
+      if (locateEntityId) {
+        this._focusEntityOnBoard(locateEntityId);
+        return;
+      }
+
       const nodeType = event.target.closest('[data-add-node-type]')?.dataset.addNodeType;
       if (nodeType) {
         this.root.querySelector('.relationship-add-menu').hidden = true;
@@ -1033,6 +1039,117 @@
       return resource?.name || entity.name;
     }
 
+    _deploymentVersionContext(entity) {
+      if (!entity || entity.type !== 'deployment') return '';
+      return [
+        entity.details?.environment,
+        entity.details?.version,
+        entity.details?.branch,
+        entity.details?.revision,
+        entity.details?.status
+      ].filter(Boolean).join(' · ');
+    }
+
+    _serverDeploymentContext(serverId) {
+      if (!serverId || !this.store) return [];
+      const entitiesById = new Map(this.store.entities.map(entity => [entity.id, entity]));
+      const relationships = this.store.relationships || [];
+      const sourceRelationships = relationships.filter(relationship => relationship.type === 'source_of');
+      const containsRelationships = relationships.filter(relationship => relationship.type === 'contains');
+      const placedIds = new Set(activeBoard(this.store)?.placements.map(item => item.entityId) || []);
+      return relationships
+        .filter(relationship => relationship.type === 'runs_on' && relationship.targetId === serverId)
+        .map(relationship => {
+          const deployment = entitiesById.get(relationship.sourceId);
+          if (!deployment || deployment.type !== 'deployment') return null;
+          const repositories = sourceRelationships
+            .filter(candidate => candidate.targetId === deployment.id)
+            .map(candidate => entitiesById.get(candidate.sourceId))
+            .filter(entity => entity?.type === 'repository');
+          const repositoryIds = new Set(repositories.map(entity => entity.id));
+          const projects = containsRelationships
+            .filter(candidate => repositoryIds.has(candidate.targetId))
+            .map(candidate => entitiesById.get(candidate.sourceId))
+            .filter(entity => entity?.type === 'project');
+          return {
+            deployment,
+            repositories: [...new Map(repositories.map(entity => [entity.id, entity])).values()],
+            projects: [...new Map(projects.map(entity => [entity.id, entity])).values()],
+            versionContext: this._deploymentVersionContext(deployment),
+            placed: placedIds.has(deployment.id)
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => this._entityDisplayName(left.deployment).localeCompare(
+          this._entityDisplayName(right.deployment),
+          'zh-CN'
+        ));
+    }
+
+    _serverDeploymentContextHtml(serverId) {
+      const context = this._serverDeploymentContext(serverId);
+      if (!context.length) {
+        return `
+          <section class="relationship-server-context" aria-label="关联部署">
+            <div class="relationship-inspector-section-title">关联部署</div>
+            <p class="relationship-server-context-empty">尚无指向该服务器的“运行于”关系。</p>
+          </section>`;
+      }
+      return `
+        <section class="relationship-server-context" aria-label="关联部署">
+          <div class="relationship-inspector-section-title">关联部署 · ${context.length}</div>
+          <p class="relationship-server-context-note">从现有关系事实派生，不连接服务器或检查实时运行状态。</p>
+          <ul>${context.map(item => {
+            const projectNames = item.projects.map(entity => this._entityDisplayName(entity));
+            const repositoryNames = item.repositories.map(entity => this._entityDisplayName(entity));
+            const associations = [
+              projectNames.length ? `项目 ${projectNames.join('、')}` : '未关联项目',
+              repositoryNames.length ? `仓库 ${repositoryNames.join('、')}` : '未关联仓库'
+            ].join(' · ');
+            return `
+              <li>
+                <div>
+                  <strong>${escapeHtml(this._entityDisplayName(item.deployment))}</strong>
+                  <span title="${escapeHtml(item.versionContext)}">${escapeHtml(item.versionContext || '未记录部署版本上下文')}</span>
+                  <small>${escapeHtml(associations)}</small>
+                </div>
+                <button type="button" data-relationship-locate-entity="${escapeHtml(item.deployment.id)}" ${item.placed ? '' : 'disabled title="该部署未放在当前白板"'}>定位</button>
+              </li>`;
+          }).join('')}</ul>
+        </section>`;
+    }
+
+    _focusEntityOnBoard(entityId) {
+      const board = activeBoard(this.store);
+      const entity = this.store?.entities.find(candidate => candidate.id === entityId);
+      const placement = board?.placements.find(candidate => candidate.entityId === entityId);
+      if (!board || !entity || !placement) {
+        this.notify('该关联节点未放在当前白板中', 'warning');
+        return false;
+      }
+      const { mode } = this._boardView();
+      if (this._hasActiveFilters(board.view) || board.view.projection !== 'facts') {
+        board.view = { ...Model.defaultBoardView(), mode, projection: 'facts' };
+      }
+      this._selectOnlyEntity(entityId);
+      this.keyboardConnectSourceId = '';
+      const canvas = this.root?.querySelector('.relationship-canvas');
+      const rect = canvas?.getBoundingClientRect();
+      if (rect?.width && rect?.height) {
+        const { width, height } = this._nodeDimensions();
+        const zoom = board.viewport.zoom;
+        board.viewport.x = rect.width / 2 - (placement.x + width / 2) * zoom;
+        board.viewport.y = rect.height / 2 - (placement.y + height / 2) * zoom;
+      }
+      this._applyViewMode();
+      this._persistSoon(0);
+      this._renderGraph();
+      this._updateFilterSummary();
+      this._updateSummary();
+      this._setCanvasAnnouncement(`已在当前白板定位 ${this._entityDisplayName(entity)}`);
+      return true;
+    }
+
     _selectedFact() {
       const selectedIds = this._entitySelectionIds();
       if (selectedIds.size === 1) {
@@ -1132,6 +1249,7 @@
       let subheading = '';
       let identityHtml = '';
       let editableFields = '';
+      let contextHtml = '';
       if (selected.kind === 'entity') {
         const resource = fact.refId ? this.resourceMap.get(`${fact.type}:${fact.refId}`) : null;
         heading = this._entityDisplayName(fact);
@@ -1146,6 +1264,7 @@
             <span>名称</span>
             <input name="name" value="${escapeHtml(fact.name)}" maxlength="160" required>
           </label>`}${this._entityDetailFieldsHtml(fact)}`;
+        if (fact.type === 'server') contextHtml = this._serverDeploymentContextHtml(fact.id);
       } else {
         const source = this.store.entities.find(entity => entity.id === fact.sourceId);
         const target = this.store.entities.find(entity => entity.id === fact.targetId);
@@ -1169,6 +1288,7 @@
         <form class="relationship-inspector-form" data-relationship-inspector-form data-inspector-kind="${selected.kind}" data-inspector-id="${escapeHtml(fact.id)}">
           ${identityHtml}
           ${editableFields}
+          ${contextHtml}
           <div class="relationship-inspector-section-title">事实与核验</div>
           ${this._factFieldsHtml(fact)}
           <p class="relationship-inspector-error" role="alert"></p>
