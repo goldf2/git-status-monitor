@@ -148,6 +148,24 @@ test('全选同步范围锚点、ARIA、游标焦点、详情和状态栏', () =
   assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'detail' && call[1].length === 3));
 });
 
+test('Quick Look 切换项目时复用单选语义并保持预览窗口焦点', () => {
+  const { calls, controller, elements, state } = createHarness({
+    state: { selectedPaths: new Set(['/workspace/a']), selectionAnchorPath: '/workspace/a' }
+  });
+
+  assert.equal(controller.selectSinglePath('/workspace/c', { focus: false }), true);
+  assert.deepEqual([...state.selectedPaths], ['/workspace/c']);
+  assert.equal(state.selectionAnchorPath, '/workspace/c');
+  assert.equal(state.fileKeyboardFocusPath, '/workspace/c');
+  assert.equal(elements[2].focusCalls.length, 0);
+  assert.equal(elements[2].scrollCalls.length, 1);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'repo' && call[1] === '/workspace/c'));
+  assert.equal(controller.focusPath('/workspace/c'), true);
+  assert.equal(elements[2].focusCalls.length, 1);
+  assert.equal(controller.selectSinglePath('/workspace/missing'), false);
+  assert.equal(controller.focusPath('/workspace/missing'), false);
+});
+
 test('虚拟列表键盘导航先定位完整顺序，再聚焦已渲染行', () => {
   const ensured = [];
   const { app, controller, elements, state } = createHarness({

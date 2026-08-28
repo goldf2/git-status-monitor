@@ -9,6 +9,8 @@ class FakeElement {
     this.style = {};
     this.textContent = '';
     this.innerHTML = '';
+    this.disabled = false;
+    this.attributes = new Map();
     this.listeners = new Map();
   }
 
@@ -23,6 +25,14 @@ class FakeElement {
   insertAdjacentHTML(_position, html) {
     this.innerHTML += html;
   }
+
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(name);
+  }
 }
 
 function createDocument() {
@@ -33,7 +43,10 @@ function createDocument() {
     ['quick-look-icon', new FakeElement()],
     ['quick-look-body', new FakeElement()],
     ['quick-look-open-btn', new FakeElement()],
-    ['quick-look-close-btn', new FakeElement()]
+    ['quick-look-close-btn', new FakeElement()],
+    ['quick-look-prev-btn', new FakeElement()],
+    ['quick-look-next-btn', new FakeElement()],
+    ['quick-look-position', new FakeElement()]
   ]);
   return {
     elements,
@@ -88,7 +101,10 @@ function createController(options = {}) {
     formatFileSize: value => `${value} bytes`,
     formatItemDate: () => 'today',
     getItemByPath: options.getItemByPath,
-    activateDirectory: options.activateDirectory
+    activateDirectory: options.activateDirectory,
+    getNavigationState: options.getNavigationState,
+    navigateItem: options.navigateItem,
+    restoreSelectionFocus: options.restoreSelectionFocus
   });
   return { controller, document, contentApi, released };
 }
@@ -109,6 +125,19 @@ test('Quick Look 控制器独立管理打开、渲染、关闭和未消费令牌
   assert.equal(controller.isOpen(), false);
   assert.equal(document.elements.get('quick-look-overlay').style.display, 'none');
   assert.deepEqual(released, ['token-/managed/large.txt']);
+});
+
+test('点击 Quick Look 背景不会关闭，显式关闭按钮仍可关闭', async () => {
+  const { controller, document } = createController();
+  controller.bind();
+  await controller.open({ type: 'file', name: 'notes.txt', path: '/managed/notes.txt' });
+
+  const overlay = document.elements.get('quick-look-overlay');
+  overlay.listeners.get('click')?.({ target: overlay, currentTarget: overlay });
+  assert.equal(controller.isOpen(), true);
+
+  document.elements.get('quick-look-close-btn').listeners.get('click')?.({});
+  assert.equal(controller.isOpen(), false);
 });
 
 test('同一路径重复打开也以请求代次拒绝迟到结果并撤销其令牌', async () => {
@@ -135,6 +164,53 @@ test('同一路径重复打开也以请求代次拒绝迟到结果并撤销其�
   assert.match(document.elements.get('quick-look-body').innerHTML, /new result/);
   assert.doesNotMatch(document.elements.get('quick-look-body').innerHTML, /stale result/);
   assert.deepEqual(released, ['stale-token']);
+});
+
+test('Quick Look 连续浏览同步项目、计数和边界按钮', async () => {
+  const items = ['/managed/a.txt', '/managed/b.txt', '/managed/c.txt'].map(itemPath => ({
+    type: 'file',
+    name: itemPath.split('/').pop(),
+    path: itemPath
+  }));
+  const navigationState = itemPath => {
+    const index = items.findIndex(item => item.path === itemPath);
+    return {
+      position: index + 1,
+      total: items.length,
+      hasPrevious: index > 0,
+      hasNext: index >= 0 && index < items.length - 1
+    };
+  };
+  const restoredFocus = [];
+  const { controller, document } = createController({
+    getNavigationState: navigationState,
+    navigateItem: (direction, itemPath) => {
+      const index = items.findIndex(item => item.path === itemPath);
+      return items[index + direction] || null;
+    },
+    restoreSelectionFocus: itemPath => restoredFocus.push(itemPath)
+  });
+
+  await controller.open(items[0]);
+  assert.equal(document.elements.get('quick-look-position').textContent, '1 / 3');
+  assert.equal(document.elements.get('quick-look-prev-btn').disabled, true);
+  assert.equal(document.elements.get('quick-look-next-btn').disabled, false);
+
+  assert.equal(await controller.navigate(1), true);
+  assert.equal(controller.currentPath(), items[1].path);
+  assert.equal(document.elements.get('quick-look-title').textContent, 'b.txt');
+  assert.equal(document.elements.get('quick-look-position').textContent, '2 / 3');
+  assert.equal(document.elements.get('quick-look-prev-btn').disabled, false);
+  assert.equal(document.elements.get('quick-look-next-btn').disabled, false);
+
+  assert.equal(await controller.navigate(1), true);
+  assert.equal(controller.currentPath(), items[2].path);
+  assert.equal(document.elements.get('quick-look-position').textContent, '3 / 3');
+  assert.equal(document.elements.get('quick-look-next-btn').disabled, true);
+  assert.equal(await controller.navigate(1), false);
+  assert.equal(controller.currentPath(), items[2].path);
+  controller.close();
+  assert.deepEqual(restoredFocus, [items[2].path]);
 });
 
 test('翻页期间关闭会拒绝迟到内容并撤销主进程返回的新令牌', async () => {

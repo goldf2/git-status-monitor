@@ -23,9 +23,6 @@
       this._element('directory-performance-diagnostics')?.addEventListener('click', () => this.open());
       this._element('directory-performance-close-btn')?.addEventListener('click', () => this.close());
       this._element('directory-performance-done-btn')?.addEventListener('click', () => this.close());
-      this._element('directory-performance-modal')?.addEventListener('click', event => {
-        if (event.target === event.currentTarget) this.close();
-      });
       this._element('directory-performance-modal')?.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
         event.preventDefault?.();

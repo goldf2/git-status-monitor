@@ -25,6 +25,9 @@
       this.formatItemDate = options.formatItemDate || (() => '');
       this.getItemByPath = options.getItemByPath || (() => null);
       this.activateDirectory = options.activateDirectory || (() => {});
+      this.getNavigationState = options.getNavigationState || (() => null);
+      this.navigateItem = options.navigateItem || (() => null);
+      this.restoreSelectionFocus = options.restoreSelectionFocus || (() => {});
       this.pagingController = options.pagingController || new this.pagingModule.Controller();
       this.active = false;
       this.path = null;
@@ -38,14 +41,13 @@
       this.bound = true;
       this._element('quick-look-close-btn')?.addEventListener('click', () => this.close());
       this._element('quick-look-open-btn')?.addEventListener('click', () => this.openCurrentItem());
+      this._element('quick-look-prev-btn')?.addEventListener('click', () => this.navigate(-1));
+      this._element('quick-look-next-btn')?.addEventListener('click', () => this.navigate(1));
       this._element('quick-look-body')?.addEventListener('click', event => {
         const actionTarget = event.target?.closest?.('[data-quick-look-action]');
         const action = actionTarget?.dataset?.quickLookAction
           || actionTarget?.getAttribute?.('data-quick-look-action');
         if (action === 'convert-binary-plist') this.convertBinaryPlist();
-      });
-      this._element('quick-look-overlay')?.addEventListener('click', event => {
-        if (event.target === event.currentTarget) this.close();
       });
     }
 
@@ -75,6 +77,7 @@
       this.path = item.path;
       this.item = { ...item };
       elements.overlay.style.display = 'flex';
+      this._refreshNavigation();
       if (elements.title) elements.title.textContent = item.name || this._basename(item.path) || item.path;
       if (elements.meta) elements.meta.textContent = item.path;
       if (elements.icon) elements.icon.textContent = item.type === 'directory' ? '📁' : '📄';
@@ -251,6 +254,7 @@
     }
 
     close() {
+      const closingPath = this.path;
       this.active = false;
       this.path = null;
       this.item = null;
@@ -258,6 +262,20 @@
       this._releasePagingToken();
       const overlay = this._element('quick-look-overlay');
       if (overlay) overlay.style.display = 'none';
+      this._refreshNavigation();
+      if (closingPath) this.restoreSelectionFocus(closingPath);
+    }
+
+    async navigate(direction) {
+      if (!this.active || !this.path) return false;
+      const step = Number(direction) < 0 ? -1 : 1;
+      const item = await this.navigateItem(step, this.path);
+      if (!this.active || !item?.path || item.path === this.path) {
+        this._refreshNavigation();
+        return false;
+      }
+      await this.open(item);
+      return true;
     }
 
     openCurrentItem() {
@@ -280,6 +298,24 @@
       body.insertAdjacentHTML?.('beforeend', html);
       body.querySelector?.('[data-quick-look-page="next"]')?.addEventListener('click', () => this.loadNextPage());
       body.querySelector?.('[data-quick-look-page="restart"]')?.addEventListener('click', () => this.restart());
+    }
+
+    _refreshNavigation() {
+      const previousButton = this._element('quick-look-prev-btn');
+      const nextButton = this._element('quick-look-next-btn');
+      const positionElement = this._element('quick-look-position');
+      const state = this.active && this.path ? (this.getNavigationState(this.path) || {}) : {};
+      const position = Math.max(0, Number(state.position) || 0);
+      const total = Math.max(0, Number(state.total) || 0);
+      if (previousButton) previousButton.disabled = !this.active || state.hasPrevious !== true;
+      if (nextButton) nextButton.disabled = !this.active || state.hasNext !== true;
+      if (positionElement) {
+        positionElement.textContent = this.active && position > 0 && total > 0 ? `${position} / ${total}` : '';
+        positionElement.setAttribute?.(
+          'aria-label',
+          this.active && position > 0 && total > 0 ? `第 ${position} 项，共 ${total} 项` : '没有可浏览的预览项目'
+        );
+      }
     }
 
     _releasePagingToken() {
@@ -344,7 +380,10 @@
         meta: this._element('quick-look-meta'),
         icon: this._element('quick-look-icon'),
         body: this._element('quick-look-body'),
-        openButton: this._element('quick-look-open-btn')
+        openButton: this._element('quick-look-open-btn'),
+        previousButton: this._element('quick-look-prev-btn'),
+        nextButton: this._element('quick-look-next-btn'),
+        position: this._element('quick-look-position')
       };
     }
   }

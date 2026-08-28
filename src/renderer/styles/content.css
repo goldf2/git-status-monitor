@@ -4372,6 +4372,53 @@ body.file-drag-active.file-drag-copy {
   min-width: 0;
 }
 
+.quick-look-navigation {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.quick-look-nav {
+  width: 28px;
+  height: 27px;
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.quick-look-nav:not(:disabled):hover,
+.quick-look-nav:not(:disabled):focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.quick-look-nav:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.quick-look-nav:disabled {
+  opacity: 0.28;
+}
+
+.quick-look-position {
+  min-width: 48px;
+  padding: 0 5px;
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .quick-look-icon {
   font-size: 24px;
   flex-shrink: 0;
@@ -7496,6 +7543,10 @@ body.file-drag-active.file-drag-copy {
   }
 
   .quick-look-primary-action:active:not(:disabled) {
+    transform: none;
+  }
+
+  .quick-look-nav:active:not(:disabled) {
     transform: none;
   }
 

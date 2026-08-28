@@ -69,9 +69,6 @@
         if (rename) this.rename(rename.dataset.fileLabelRename);
         if (remove) this.remove(remove.dataset.fileLabelDelete);
       });
-      this.element('file-label-modal')?.addEventListener('click', event => {
-        if (event.target === event.currentTarget) this.close();
-      });
       this.document?.addEventListener('keydown', event => {
         if (event.key !== 'Escape' || !this.isOpen()) return;
         event.preventDefault();

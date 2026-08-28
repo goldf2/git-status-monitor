@@ -126,9 +126,6 @@
       this.element('content-filter-cancel-btn')?.addEventListener('click', () => this.close());
       this.element('content-filter-reset-btn')?.addEventListener('click', () => this.resetDraft());
       this.element('content-filter-apply-btn')?.addEventListener('click', () => this.apply());
-      this.element('content-filter-modal')?.addEventListener('click', event => {
-        if (event.target === this.element('content-filter-modal')) this.close();
-      });
       this.lifecycleInputs().forEach(input => input.addEventListener('change', () => this.updateDraftAvailability()));
       this.gitStatusInputs().forEach(input => input.addEventListener('change', () => this.updateDraftAvailability()));
       this.element('content-filter-file-labels')?.addEventListener('change', () => this.updateDraftAvailability());

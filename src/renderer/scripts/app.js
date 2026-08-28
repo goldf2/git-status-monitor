@@ -311,7 +311,10 @@ const App = {
       formatFileSize: value => this.formatFileSize(value),
       formatItemDate: value => this.formatItemDate(value),
       getItemByPath: itemPath => AppState.visibleItems.find(candidate => candidate.path === itemPath),
-      activateDirectory: item => this.activateFileItem(item)
+      activateDirectory: item => this.activateFileItem(item),
+      getNavigationState: itemPath => this.getQuickLookNavigationState(itemPath),
+      navigateItem: (direction, itemPath) => this.selectQuickLookNavigationItem(direction, itemPath),
+      restoreSelectionFocus: itemPath => this.directorySelectionController.focusPath(itemPath)
     });
     this.quickLookController.bind();
   },
@@ -697,9 +700,6 @@ const App = {
     document.getElementById('go-to-folder-input')?.addEventListener('input', () => this.setGoToFolderFeedback(''));
     document.getElementById('go-to-folder-close-btn')?.addEventListener('click', () => this.closeGoToFolderDialog());
     document.getElementById('go-to-folder-cancel-btn')?.addEventListener('click', () => this.closeGoToFolderDialog());
-    document.getElementById('go-to-folder-modal')?.addEventListener('click', event => {
-      if (event.target === event.currentTarget) this.closeGoToFolderDialog();
-    });
     document.getElementById('go-to-folder-recent')?.addEventListener('click', event => {
       const suggestion = event.target.closest('[data-go-to-path]');
       const input = document.getElementById('go-to-folder-input');
@@ -712,9 +712,6 @@ const App = {
     document.getElementById('external-import-close-btn')?.addEventListener('click', () => this.handleExternalImportCancel());
     document.getElementById('external-import-cancel-btn')?.addEventListener('click', () => this.handleExternalImportCancel());
     document.getElementById('external-import-apply-btn')?.addEventListener('click', () => this.applyExternalImport());
-    document.getElementById('external-import-modal')?.addEventListener('click', event => {
-      if (event.target === event.currentTarget) this.handleExternalImportCancel();
-    });
     document.getElementById('transfer-review-close-btn')?.addEventListener('click', () => this.handleTransferReviewCancel());
     document.getElementById('transfer-review-cancel-btn')?.addEventListener('click', () => this.handleTransferReviewCancel());
     document.getElementById('transfer-review-apply-btn')?.addEventListener('click', () => this.applyReviewedTransfer());
@@ -724,17 +721,11 @@ const App = {
         this.setTransferStructureRiskAcknowledged(event.target.checked);
       }
     });
-    document.getElementById('transfer-review-modal')?.addEventListener('click', event => {
-      if (event.target === event.currentTarget) this.handleTransferReviewCancel();
-    });
     document.addEventListener('keydown', event => this.handleFileKeyboardShortcut(event));
     this.setupFileContextMenu();
     document.getElementById('local-project-close-btn')?.addEventListener('click', () => this.closeLocalProjectDialog());
     document.getElementById('local-project-cancel-btn')?.addEventListener('click', () => this.closeLocalProjectDialog());
     document.getElementById('local-project-save-btn')?.addEventListener('click', () => this.saveLocalProjectDialog());
-    document.getElementById('local-project-modal')?.addEventListener('click', event => {
-      if (event.target === event.currentTarget) this.closeLocalProjectDialog();
-    });
     window.gitFinder.app.onShortcut(action => {
       if (action === 'new-tab') this.createWorkspaceTab();
       if (action === 'restore-tab') this.restoreClosedWorkspaceTab();
@@ -943,14 +934,6 @@ const App = {
       btn.addEventListener('click', () => {
         const modalId = btn.dataset.modal;
         document.getElementById(modalId).style.display = 'none';
-      });
-    });
-
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          overlay.style.display = 'none';
-        }
       });
     });
 
@@ -7382,6 +7365,10 @@ const App = {
     return this.directorySelectionController.clearFileSelection();
   },
 
+  selectSingleFileItem(itemPath, options) {
+    return this.directorySelectionController.selectSinglePath(itemPath, options);
+  },
+
   showFileSelectionDetail(items) {
     return this.fileSelectionDetailController.show(items);
   },
@@ -7746,10 +7733,19 @@ const App = {
       return;
     }
 
-    if (this.quickLookController?.isOpen() && (event.key === 'Escape' || event.code === 'Space')) {
-      event.preventDefault();
-      this.closeQuickLook();
-      return;
+    if (this.quickLookController?.isOpen()) {
+      if (event.key === 'Escape' || event.code === 'Space') {
+        event.preventDefault();
+        this.closeQuickLook();
+        return;
+      }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+          && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        event.preventDefault();
+        const direction = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1;
+        this.quickLookController.navigate(direction);
+        return;
+      }
     }
 
     const editAction = window.EditActionRouter.shortcutAction(event, window.gitFinder.platform);
@@ -7897,6 +7893,35 @@ const App = {
   toggleQuickLook() {
     this.fileInfoController?.close({ restoreFocus: false });
     this.quickLookController?.toggle(this.getSelectedFileItems());
+  },
+
+  getQuickLookNavigationItems() {
+    const byPath = new Map(AppState.visibleItems.map(item => [item.path, item]));
+    const orderedPaths = AppState.fileDisplayOrder.length
+      ? AppState.fileDisplayOrder
+      : AppState.visibleItems.map(item => item.path);
+    return orderedPaths.map(itemPath => byPath.get(itemPath)).filter(Boolean);
+  },
+
+  getQuickLookNavigationState(itemPath) {
+    const items = this.getQuickLookNavigationItems();
+    const index = items.findIndex(item => item.path === itemPath);
+    return {
+      position: index >= 0 ? index + 1 : 0,
+      total: items.length,
+      hasPrevious: index > 0,
+      hasNext: index >= 0 && index < items.length - 1
+    };
+  },
+
+  selectQuickLookNavigationItem(direction, itemPath) {
+    const items = this.getQuickLookNavigationItems();
+    const index = items.findIndex(item => item.path === itemPath);
+    const targetIndex = index + (Number(direction) < 0 ? -1 : 1);
+    if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return null;
+    const item = items[targetIndex];
+    if (!this.selectSingleFileItem(item.path, { focus: false })) return null;
+    return item;
   },
 
   async openQuickLook(item) {

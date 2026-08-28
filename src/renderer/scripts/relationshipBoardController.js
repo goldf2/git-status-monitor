@@ -2432,7 +2432,7 @@
           finish(null);
         };
         overlay.addEventListener('click', event => {
-          if (event.target === overlay || event.target.closest('[data-dialog-cancel]')) finish(null);
+          if (event.target.closest('[data-dialog-cancel]')) finish(null);
         });
         overlay.querySelector('form').addEventListener('submit', event => {
           event.preventDefault();
@@ -2518,7 +2518,7 @@
           finish(false);
         };
         overlay.addEventListener('click', event => {
-          if (event.target === overlay || event.target.closest('[data-dialog-cancel]')) finish(false);
+          if (event.target.closest('[data-dialog-cancel]')) finish(false);
         });
         overlay.querySelector('form').addEventListener('submit', event => {
           event.preventDefault();
@@ -2563,7 +2563,7 @@
           }
         };
         overlay.addEventListener('click', event => {
-          if (event.target === overlay || event.target.closest('[data-dialog-cancel]')) finish(null);
+          if (event.target.closest('[data-dialog-cancel]')) finish(null);
         });
         overlay.querySelector('form').addEventListener('submit', event => {
           event.preventDefault();

@@ -109,6 +109,20 @@ test('名称对话框设置安全模态状态并选中文件扩展名前的基�
   assert.equal(harness.document.activeElement, input);
 });
 
+test('点击名称对话框背景不会关闭，显式取消仍可关闭', async () => {
+  const harness = createHarness();
+  harness.controller.bind();
+  const result = harness.controller.open({ title: '新建文件夹', value: '新建文件夹' });
+  const modal = harness.document.getElementById('file-operation-modal');
+
+  modal.dispatch('click');
+  assert.equal(modal.style.display, 'flex');
+
+  harness.document.getElementById('file-operation-cancel-btn').dispatch('click');
+  assert.equal(await result, null);
+  assert.equal(modal.style.display, 'none');
+});
+
 test('空名称保持对话框打开，有效名称通过 Return 提交并恢复原焦点', async () => {
   const harness = createHarness();
   const origin = harness.document.getElementById('origin-card');

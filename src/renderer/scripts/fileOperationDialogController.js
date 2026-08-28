@@ -33,9 +33,6 @@
       });
       this.document.querySelectorAll?.('#file-operation-modal [data-modal="file-operation-modal"]')
         .forEach(button => button.addEventListener('click', () => this.close(null)));
-      this._element('file-operation-modal')?.addEventListener('click', event => {
-        if (event.target === event.currentTarget) this.close(null);
-      });
     }
 
     open(options = {}) {

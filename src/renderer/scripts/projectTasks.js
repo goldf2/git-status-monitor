@@ -2141,11 +2141,6 @@ Object.assign(App, {
     document.getElementById('task-status-close-btn')?.addEventListener('click', () => this.closeProjectTaskStatusPreview());
     document.getElementById('task-status-cancel-btn')?.addEventListener('click', () => this.closeProjectTaskStatusPreview());
     document.getElementById('task-status-apply-btn')?.addEventListener('click', () => this.applyProjectTaskStatus());
-    modal.addEventListener('click', event => {
-      if (event.target !== modal) return;
-      event.stopImmediatePropagation();
-      if (!AppState.taskStatusApplying) this.closeProjectTaskStatusPreview();
-    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || AppState.taskStatusApplying) return;
       event.preventDefault();
@@ -2166,11 +2161,6 @@ Object.assign(App, {
         : this.previewProjectTaskUpdate();
       action?.catch(error => this._showStatusMessage(error?.message || String(error), 'error'));
     });
-    modal.addEventListener('click', event => {
-      if (event.target !== modal) return;
-      event.stopImmediatePropagation();
-      if (!AppState.taskEditApplying) this.closeProjectTaskEdit();
-    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || AppState.taskEditApplying) return;
       event.preventDefault();
@@ -2191,11 +2181,6 @@ Object.assign(App, {
         : this.previewProjectTaskCreate();
       action?.catch(error => this._showStatusMessage(error?.message || String(error), 'error'));
     });
-    modal.addEventListener('click', event => {
-      if (event.target !== modal) return;
-      event.stopImmediatePropagation();
-      if (!AppState.taskCreateApplying) this.closeProjectTaskCreate();
-    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || AppState.taskCreateApplying) return;
       event.preventDefault();
@@ -2216,11 +2201,6 @@ Object.assign(App, {
         : this.previewProjectMilestoneUpdate();
       action?.catch(error => this._showStatusMessage(error?.message || String(error), 'error'));
     });
-    modal.addEventListener('click', event => {
-      if (event.target !== modal) return;
-      event.stopImmediatePropagation();
-      if (!AppState.milestoneEditApplying) this.closeProjectMilestoneEdit();
-    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || AppState.milestoneEditApplying) return;
       event.preventDefault();

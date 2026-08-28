@@ -46,9 +46,6 @@
       });
       this.cancelButton?.addEventListener('click', () => this.close());
       this.closeButton?.addEventListener('click', () => this.close());
-      this.modal.addEventListener('click', event => {
-        if (event.target === this.modal) this.close();
-      });
       this.document.addEventListener('keydown', event => {
         if (event.key !== 'Escape' || !this.isOpen() || this.applying) return;
         event.preventDefault();

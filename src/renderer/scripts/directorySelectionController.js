@@ -240,6 +240,35 @@
       if (this.app.isFileBrowsingContext()) this.app.showFileSelectionDetail([]);
     }
 
+    selectSinglePath(itemPath, options = {}) {
+      const item = this.state.visibleItems.find(candidate => candidate.path === itemPath);
+      if (!item) return false;
+      this.state.selectedPaths = new Set([itemPath]);
+      this.state.selectionAnchorPath = itemPath;
+      this.state.fileKeyboardFocusPath = itemPath;
+      this.ensureFileItemVisible(itemPath);
+      this.finishKeyboardSelection(itemPath);
+      if (this.state.cardStyle === 'gallery') this.app.renderGalleryPreview(item);
+      const element = this.document.querySelector?.(
+        `#content-area [data-path="${this.app.cssEscape(itemPath)}"]`
+      );
+      if (options.focus !== false) element?.focus?.({ preventScroll: true });
+      element?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      return true;
+    }
+
+    focusPath(itemPath) {
+      if (!this.state.visibleItems.some(item => item.path === itemPath)) return false;
+      this.ensureFileItemVisible(itemPath);
+      const element = this.document.querySelector?.(
+        `#content-area [data-path="${this.app.cssEscape(itemPath)}"]`
+      );
+      if (!element) return false;
+      element.focus?.({ preventScroll: true });
+      element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      return true;
+    }
+
     selectAllVisibleFiles() {
       this.state.selectedPaths = new Set(this.state.visibleItems.map(item => item.path));
       this.state.selectionAnchorPath = this.state.visibleItems[0]?.path || null;

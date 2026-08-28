@@ -47,11 +47,6 @@
         event.preventDefault();
         this.save();
       });
-      this.element('smart-collection-modal')?.addEventListener('click', event => {
-        if (event.target !== this.element('smart-collection-modal')) return;
-        event.stopImmediatePropagation?.();
-        this.close();
-      });
       this.element('smart-collection-context-menu')?.addEventListener('click', async event => {
         const action = event.target.closest?.('[data-smart-collection-action]')?.dataset.smartCollectionAction;
         const id = this.menuCollectionId;
