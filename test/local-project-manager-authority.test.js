@@ -6,9 +6,12 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const AUTHORITY_SOURCE = path.resolve(
+const AUTHORITY_SOURCE = process.env.GITFINDER_AUTHORITY_SOURCE || path.resolve(
   '/Volumes/project/开发中/工具/local-project-manager/scripts/gitfinder_authority.py'
 );
+const authorityTest = process.platform !== 'win32' && fs.existsSync(AUTHORITY_SOURCE)
+  ? test
+  : test.skip;
 
 function write(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -241,7 +244,7 @@ function invokeMilestoneUpdate(fixture, command, changes, values = {}) {
   return { ...result, payload };
 }
 
-test('状态预览返回确定性差异、修订和令牌，且对项目目录绝对零写入', (t) => {
+authorityTest('状态预览返回确定性差异、修订和令牌，且对项目目录绝对零写入', (t) => {
   const fixture = createFixture(t);
   const before = snapshotTree(fixture.tempRoot);
   const first = invoke(fixture, 'preview-status');
@@ -262,7 +265,7 @@ test('状态预览返回确定性差异、修订和令牌，且对项目目录�
   assert.deepEqual(snapshotTree(fixture.tempRoot), before);
 });
 
-test('状态应用创建备份和投影，并以 operation id 保证重复请求幂等', (t) => {
+authorityTest('状态应用创建备份和投影，并以 operation id 保证重复请求幂等', (t) => {
   const fixture = createFixture(t);
   const preview = invoke(fixture, 'preview-status').payload;
   const applied = invoke(fixture, 'apply-status', {
@@ -290,7 +293,7 @@ test('状态应用创建备份和投影，并以 operation id 保证重复请求
   assert.deepEqual(snapshotTree(fixture.tempRoot), beforeRetry);
 });
 
-test('过期修订和被篡改的预览令牌都会在写入前被拒绝', (t) => {
+authorityTest('过期修订和被篡改的预览令牌都会在写入前被拒绝', (t) => {
   const staleFixture = createFixture(t);
   const stalePreview = invoke(staleFixture, 'preview-status').payload;
   fs.appendFileSync(path.join(staleFixture.projectRoot, 'management', 'tasks.csv'), '\n');
@@ -315,7 +318,7 @@ test('过期修订和被篡改的预览令牌都会在写入前被拒绝', (t) =
   assert.deepEqual(snapshotTree(tokenFixture.tempRoot), beforeTokenApply);
 });
 
-test('待确认状态建议、项目身份不符和符号链接逃逸均被拒绝', (t) => {
+authorityTest('待确认状态建议、项目身份不符和符号链接逃逸均被拒绝', (t) => {
   const pendingFixture = createFixture(t, { pendingProposal: true });
   const beforePending = snapshotTree(pendingFixture.tempRoot);
   const pending = invoke(pendingFixture, 'preview-status');
@@ -338,7 +341,7 @@ test('待确认状态建议、项目身份不符和符号链接逃逸均被拒�
   assert.equal(escaped.payload.error_code, 'unsafe_project_root');
 });
 
-test('任务字段预览只允许白名单字段、规范化差异，且保持项目树零写入', (t) => {
+authorityTest('任务字段预览只允许白名单字段、规范化差异，且保持项目树零写入', (t) => {
   const fixture = createFixture(t);
   const before = snapshotTree(fixture.tempRoot);
   const preview = invokeUpdate(fixture, 'preview-task-update', {
@@ -373,7 +376,7 @@ test('任务字段预览只允许白名单字段、规范化差异，且保持�
   assert.deepEqual(snapshotTree(fixture.tempRoot), before);
 });
 
-test('任务字段应用备份、审计并重建投影，重复 operation id 不会再次写入', (t) => {
+authorityTest('任务字段应用备份、审计并重建投影，重复 operation id 不会再次写入', (t) => {
   const fixture = createFixture(t);
   const changes = {
     title: 'Updated task',
@@ -409,7 +412,7 @@ test('任务字段应用备份、审计并重建投影，重复 operation id 不
   assert.deepEqual(snapshotTree(fixture.tempRoot), beforeRetry);
 });
 
-test('任务字段写回在过期修订、篡改令牌和同字段待确认建议时零写入拒绝', (t) => {
+authorityTest('任务字段写回在过期修订、篡改令牌和同字段待确认建议时零写入拒绝', (t) => {
   const staleFixture = createFixture(t);
   const changes = { next_action: 'New action' };
   const preview = invokeUpdate(staleFixture, 'preview-task-update', changes).payload;
@@ -442,7 +445,7 @@ test('任务字段写回在过期修订、篡改令牌和同字段待确认建�
   assert.deepEqual(snapshotTree(pendingFixture.tempRoot), beforePending);
 });
 
-test('任务字段写回在投影失败时恢复全部权威 CSV', (t) => {
+authorityTest('任务字段写回在投影失败时恢复全部权威 CSV', (t) => {
   const fixture = createFixture(t, { projectionFails: true });
   const changes = { owner: 'AI', next_action: 'Retry after repair' };
   const preview = invokeUpdate(fixture, 'preview-task-update', changes).payload;
@@ -468,7 +471,7 @@ test('任务字段写回在投影失败时恢复全部权威 CSV', (t) => {
   }
 });
 
-test('任务创建预览规范化默认值并校验阶段、父任务、ID 与待确认草案，且零写入', (t) => {
+authorityTest('任务创建预览规范化默认值并校验阶段、父任务、ID 与待确认草案，且零写入', (t) => {
   const fixture = createFixture(t);
   const before = snapshotTree(fixture.tempRoot);
   const preview = invokeCreate(fixture, 'preview-task-create', {
@@ -521,7 +524,7 @@ test('任务创建预览规范化默认值并校验阶段、父任务、ID 与�
   assert.deepEqual(snapshotTree(pendingFixture.tempRoot), beforePending);
 });
 
-test('任务创建应用写入未开始任务、计划差异与审计，并保持 operation id 幂等', (t) => {
+authorityTest('任务创建应用写入未开始任务、计划差异与审计，并保持 operation id 幂等', (t) => {
   const fixture = createFixture(t);
   const task = {
     stage_id: 'STAGE-ONE',
@@ -559,7 +562,7 @@ test('任务创建应用写入未开始任务、计划差异与审计，并保�
   assert.deepEqual(snapshotTree(fixture.tempRoot), beforeRetry);
 });
 
-test('任务创建在过期修订、篡改令牌和投影失败时拒绝或完整回滚', (t) => {
+authorityTest('任务创建在过期修订、篡改令牌和投影失败时拒绝或完整回滚', (t) => {
   const task = { stage_id: 'STAGE-ONE', title: 'Created task' };
   const staleFixture = createFixture(t);
   const stalePreview = invokeCreate(staleFixture, 'preview-task-create', task).payload;
@@ -602,7 +605,7 @@ test('任务创建在过期修订、篡改令牌和投影失败时拒绝或完�
   }
 });
 
-test('里程碑预览规范化白名单差异并保持项目树绝对零写入', (t) => {
+authorityTest('里程碑预览规范化白名单差异并保持项目树绝对零写入', (t) => {
   const fixture = createFixture(t);
   const before = snapshotTree(fixture.tempRoot);
   const preview = invokeMilestoneUpdate(fixture, 'preview-milestone-update', {
@@ -631,7 +634,7 @@ test('里程碑预览规范化白名单差异并保持项目树绝对零写入',
   assert.deepEqual(snapshotTree(fixture.tempRoot), before);
 });
 
-test('里程碑应用写入事实、逐字段计划差异和人工审计，并保持 operation id 幂等', (t) => {
+authorityTest('里程碑应用写入事实、逐字段计划差异和人工审计，并保持 operation id 幂等', (t) => {
   const fixture = createFixture(t);
   const changes = {
     name: 'Updated milestone',
@@ -666,7 +669,7 @@ test('里程碑应用写入事实、逐字段计划差异和人工审计，并�
   assert.deepEqual(snapshotTree(fixture.tempRoot), beforeRetry);
 });
 
-test('里程碑写回在过期修订、同字段待确认建议和投影失败时零写入拒绝或回滚', (t) => {
+authorityTest('里程碑写回在过期修订、同字段待确认建议和投影失败时零写入拒绝或回滚', (t) => {
   const changes = { target_date: '2026-09-02' };
   const staleFixture = createFixture(t);
   const stalePreview = invokeMilestoneUpdate(staleFixture, 'preview-milestone-update', changes).payload;

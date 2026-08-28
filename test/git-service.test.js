@@ -31,14 +31,20 @@ function writeNumberedFile(repoPath, replacements = {}) {
   fs.writeFileSync(path.join(repoPath, 'numbered.txt'), `${lines.join('\n')}\n`);
 }
 
+function absoluteTestPath(...segments) {
+  return path.resolve(path.parse(process.cwd()).root, 'repo', ...segments);
+}
+
 test('批量状态返回已解析的状态对象', async () => {
   const original = gitService.getStatus;
   gitService.getStatus = async (repoPath) => ({ isGitRepo: true, branch: path.basename(repoPath) });
+  const repoA = absoluteTestPath('a');
+  const repoB = absoluteTestPath('b');
   try {
-    const results = await gitService.batchStatus(['/repo/a', '/repo/b']);
+    const results = await gitService.batchStatus([repoA, repoB]);
     assert.deepEqual(results, [
-      { path: '/repo/a', status: { isGitRepo: true, branch: 'a' } },
-      { path: '/repo/b', status: { isGitRepo: true, branch: 'b' } }
+      { path: repoA, status: { isGitRepo: true, branch: 'a' } },
+      { path: repoB, status: { isGitRepo: true, branch: 'b' } }
     ]);
   } finally {
     gitService.getStatus = original;
@@ -47,7 +53,7 @@ test('批量状态返回已解析的状态对象', async () => {
 
 test('批量状态限制并发数、保留输入顺序并不默认 fetch', async () => {
   const original = gitService.getStatus;
-  const repoPaths = Array.from({ length: 12 }, (_, index) => `/repo/${index}`);
+  const repoPaths = Array.from({ length: 12 }, (_, index) => absoluteTestPath(String(index)));
   let active = 0;
   let maximumActive = 0;
   const receivedOptions = [];
@@ -78,7 +84,7 @@ test('批量状态限制并发数、保留输入顺序并不默认 fetch', async
 
 test('批量状态可取消，取消后不再启动队列中的仓库', async () => {
   const original = gitService.getStatus;
-  const repoPaths = Array.from({ length: 10 }, (_, index) => `/repo/cancel-${index}`);
+  const repoPaths = Array.from({ length: 10 }, (_, index) => absoluteTestPath(`cancel-${index}`));
   let started = 0;
   let release;
   const gate = new Promise(resolve => { release = resolve; });
@@ -114,7 +120,11 @@ test('批量状态进度单调增长并可按请求 ID 查询', async () => {
   const snapshots = [];
   gitService.getStatus = async repoPath => ({ isGitRepo: true, branch: path.basename(repoPath) });
   try {
-    const result = await gitService.batchStatus(['/repo/a', '/repo/b', '/repo/c'], {
+    const result = await gitService.batchStatus([
+      absoluteTestPath('a'),
+      absoluteTestPath('b'),
+      absoluteTestPath('c')
+    ], {
       requestId: 'test-progress',
       concurrency: 2,
       includeSummary: true,
@@ -135,14 +145,16 @@ test('批量状态进度单调增长并可按请求 ID 查询', async () => {
 test('批量状态拒绝超量、非绝对路径并去除重复仓库', async () => {
   const original = gitService.getStatus;
   gitService.getStatus = async repoPath => ({ isGitRepo: true, branch: path.basename(repoPath) });
+  const repoA = absoluteTestPath('a');
+  const repoB = absoluteTestPath('b');
   try {
     await assert.rejects(() => gitService.batchStatus(['relative/repo']), /绝对路径/);
     await assert.rejects(
-      () => gitService.batchStatus(Array.from({ length: 1001 }, (_, index) => `/repo/${index}`)),
+      () => gitService.batchStatus(Array.from({ length: 1001 }, (_, index) => absoluteTestPath(String(index)))),
       /最多.*1000/
     );
-    const result = await gitService.batchStatus(['/repo/a', '/repo/a', '/repo/b']);
-    assert.deepEqual(result.map(item => item.path), ['/repo/a', '/repo/b']);
+    const result = await gitService.batchStatus([repoA, repoA, repoB]);
+    assert.deepEqual(result.map(item => item.path), [repoA, repoB]);
   } finally {
     gitService.getStatus = original;
   }

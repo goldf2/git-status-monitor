@@ -222,7 +222,7 @@ test('只读连接器重绑定过期路径并投影任务、验收、证据和�
   assert.equal(leaf.repositories[0].available, true);
   assert.equal(leaf.repositories[0].pathRebound, true);
   assert.equal(leaf.source.readOnly, true);
-  assert.match(leaf.source.projectionPath, /cards\/progress-overview\/data\/data\.json$/);
+  assert.match(leaf.source.projectionPath, /cards[\\/]progress-overview[\\/]data[\\/]data\.json$/);
   assert.equal(result.timeline.length, 5);
   assert.deepEqual(result.timeline.map(event => event.kind), [
     'activity', 'acceptance', 'evidence', 'run_step', 'run'

@@ -210,7 +210,10 @@ test('新建空白文件使用独占创建并可撤销', async (t) => {
   assert.equal(operation.type, 'create-file');
   assert.equal(fs.statSync(target).isFile(), true);
   assert.equal(fs.statSync(target).size, 0);
-  assert.equal(fs.statSync(target).mode & 0o777, 0o600);
+  fs.accessSync(target, fs.constants.R_OK | fs.constants.W_OK);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(target).mode & 0o777, 0o600);
+  }
   await assert.rejects(() => service.createFile(managedRoot, 'notes.md'), /目标已存在/);
 
   await service.undo(operation.id);
