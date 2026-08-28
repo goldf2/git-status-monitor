@@ -15,6 +15,8 @@ test('Windows x64 使用 NSIS 安装包并仅允许真正 Windows 主机宣告�
   ]);
   assert.match(pkg.build.nsis.artifactName, /setup/);
   assert.match(buildScript, /process\.platform !== 'win32'/);
+  assert.match(buildScript, /spawnSync\(process\.execPath/);
+  assert.match(buildScript, /electron-builder\/out\/cli\/cli\.js/);
   assert.match(buildScript, /SHA256SUMS-windows\.txt/);
   assert.match(buildScript, /unsignedTestBuild/);
 });

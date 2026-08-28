@@ -48,14 +48,18 @@ if (process.platform !== 'win32') {
 }
 
 fs.mkdirSync(distDir, { recursive: true });
-const builderExecutable = path.join(projectRoot, 'node_modules', '.bin', 'electron-builder.cmd');
+const builderExecutable = require.resolve('electron-builder/out/cli/cli.js');
 const environment = { ...process.env };
 if (!environment.CSC_LINK && !environment.WIN_CSC_LINK) environment.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
-const build = spawnSync(builderExecutable, ['--win', 'nsis', 'zip', '--x64', '--publish', 'never'], {
+const build = spawnSync(process.execPath, [builderExecutable, '--win', 'nsis', 'zip', '--x64', '--publish', 'never'], {
   cwd: projectRoot,
   env: environment,
   stdio: 'inherit'
 });
+if (build.error) {
+  console.error(`无法启动 Windows 打包器：${build.error.message}`);
+  process.exit(1);
+}
 if (build.status !== 0) process.exit(build.status || 1);
 
 for (const artifactPath of [installerPath, zipPath]) {
