@@ -680,6 +680,134 @@ test('多选节点可成组拖动并保持相对位置', () => {
   assert.equal(controller.pointerAction.moved, true);
 });
 
+test('视觉分组边框包围成员并保留标题空间', () => {
+  const controller = new Controller({ bridge: {} });
+  controller.store = {
+    schemaVersion: 1,
+    activeBoardId: 'board_test0001',
+    entities: [
+      { id: 'entity_group001', type: 'group', name: '生产链路', details: {} },
+      { id: 'entity_server01', type: 'server', name: 'One', details: {} },
+      { id: 'entity_server02', type: 'server', name: 'Two', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_test0001',
+      name: '测试',
+      viewport: { x: 0, y: 0, zoom: 1 },
+      view: { mode: 'full', projection: 'facts', query: '', entityType: 'all', environment: '', verification: 'all' },
+      placements: [
+        { entityId: 'entity_group001', x: 20, y: 20 },
+        { entityId: 'entity_server01', x: 100, y: 120, groupId: 'entity_group001' },
+        { entityId: 'entity_server02', x: 420, y: 260, groupId: 'entity_group001' }
+      ]
+    }]
+  };
+
+  const geometry = controller._placementGeometry(controller.store.boards[0].placements[0]);
+
+  assert.deepEqual(geometry, { x: 72, y: 66, width: 612, height: 316 });
+});
+
+test('拖动视觉分组会把当前白板中的成员一起移动', () => {
+  const controller = new Controller({ bridge: {} });
+  controller.store = {
+    schemaVersion: 1,
+    activeBoardId: 'board_test0001',
+    entities: [
+      { id: 'entity_group001', type: 'group', name: '生产链路', details: {} },
+      { id: 'entity_server01', type: 'server', name: 'One', details: {} },
+      { id: 'entity_server02', type: 'server', name: 'Two', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_test0001', name: '测试', viewport: { x: 0, y: 0, zoom: 1 },
+      view: { mode: 'full', projection: 'facts', query: '', entityType: 'all', environment: '', verification: 'all' },
+      placements: [
+        { entityId: 'entity_group001', x: 20, y: 20 },
+        { entityId: 'entity_server01', x: 100, y: 120, groupId: 'entity_group001' },
+        { entityId: 'entity_server02', x: 420, y: 260, groupId: 'entity_group001' }
+      ]
+    }]
+  };
+
+  assert.deepEqual(controller._movingEntityIds('entity_group001'), [
+    'entity_group001',
+    'entity_server01',
+    'entity_server02'
+  ]);
+});
+
+test('所选节点可归入和移出已有视觉分组且每次只产生一个撤销点', () => {
+  const controller = new Controller({ bridge: {} });
+  controller.store = {
+    schemaVersion: 1,
+    activeBoardId: 'board_test0001',
+    entities: [
+      { id: 'entity_group001', type: 'group', name: '生产链路', details: {} },
+      { id: 'entity_server01', type: 'server', name: 'One', details: {} },
+      { id: 'entity_server02', type: 'server', name: 'Two', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_test0001', name: '测试', viewport: { x: 0, y: 0, zoom: 1 },
+      view: { mode: 'full', projection: 'facts', query: '', entityType: 'all', environment: '', verification: 'all' },
+      placements: [
+        { entityId: 'entity_group001', x: 20, y: 20 },
+        { entityId: 'entity_server01', x: 100, y: 120 },
+        { entityId: 'entity_server02', x: 420, y: 260 }
+      ]
+    }]
+  };
+  controller._setEntitySelection(new Set(['entity_server01', 'entity_server02']), 'entity_server02');
+  controller._persistSoon = () => {};
+  controller._renderGraph = () => {};
+  controller._refreshHistoryButtons = () => {};
+  controller._updateSummary = () => {};
+
+  assert.equal(controller._assignSelectionToGroup('entity_group001'), true);
+  assert.equal(controller.undoStack.length, 1);
+  assert.deepEqual(controller.store.boards[0].placements.slice(1).map(item => item.groupId), [
+    'entity_group001',
+    'entity_group001'
+  ]);
+
+  assert.equal(controller._removeSelectionFromGroups(), true);
+  assert.equal(controller.undoStack.length, 2);
+  assert.deepEqual(controller.store.boards[0].placements.slice(1).map(item => item.groupId), [undefined, undefined]);
+});
+
+test('删除视觉分组会安全解组但保留成员节点', () => {
+  const controller = new Controller({ bridge: {} });
+  controller.store = {
+    schemaVersion: 1,
+    activeBoardId: 'board_test0001',
+    entities: [
+      { id: 'entity_group001', type: 'group', name: '生产链路', details: {} },
+      { id: 'entity_server01', type: 'server', name: 'One', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_test0001', name: '测试', viewport: { x: 0, y: 0, zoom: 1 },
+      view: { mode: 'full', projection: 'facts', query: '', entityType: 'all', environment: '', verification: 'all' },
+      placements: [
+        { entityId: 'entity_group001', x: 20, y: 20 },
+        { entityId: 'entity_server01', x: 100, y: 120, groupId: 'entity_group001' }
+      ]
+    }]
+  };
+  controller._selectOnlyEntity('entity_group001');
+  controller._persistSoon = () => {};
+  controller._renderGraph = () => {};
+  controller._refreshHistoryButtons = () => {};
+  controller._updateSummary = () => {};
+
+  controller._deleteSelection();
+
+  assert.deepEqual(controller.store.boards[0].placements, [{ entityId: 'entity_server01', x: 100, y: 120 }]);
+  assert.deepEqual(controller.store.entities.map(entity => entity.id), ['entity_server01']);
+});
+
 test('多选节点按一次删除形成一个可撤销操作', () => {
   const controller = new Controller({ bridge: {} });
   controller.store = {
@@ -790,6 +918,9 @@ test('白板多选提供修饰键、Shift 框选和不批量编辑事实的说�
   assert.match(controllerSource, /class="relationship-selection-box"/);
   assert.match(controllerSource, /事实字段必须逐个节点编辑/);
   assert.match(relationshipCss, /\.relationship-selection-box\s*\{/);
+  assert.match(controllerSource, /建立视觉分组/);
+  assert.match(controllerSource, /移出分组/);
+  assert.match(relationshipCss, /\.relationship-group-frame\s*\{/);
 });
 
 test('内容筛选保留直接匹配节点的一跳关系上下文', () => {

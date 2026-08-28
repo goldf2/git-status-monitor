@@ -225,11 +225,16 @@ class RelationshipBoardImportService {
 
     const boardsById = new Map(next.boards.map(board => [board.id, board]));
     for (const incoming of imported.boards) {
-      const placements = incoming.placements.map(placement => ({
-        entityId: entityIdMap.get(placement.entityId),
-        x: placement.x,
-        y: placement.y
-      })).filter(placement => placement.entityId);
+      const placements = incoming.placements.map(placement => {
+        const entityId = entityIdMap.get(placement.entityId);
+        const groupId = placement.groupId ? entityIdMap.get(placement.groupId) : '';
+        return {
+          entityId,
+          x: placement.x,
+          y: placement.y,
+          ...(groupId ? { groupId } : {})
+        };
+      }).filter(placement => placement.entityId);
       const existing = boardsById.get(incoming.id);
       if (!existing) {
         const created = { ...clone(incoming), placements };
@@ -241,10 +246,21 @@ class RelationshipBoardImportService {
       }
       const placedIds = new Set(existing.placements.map(placement => placement.entityId));
       const additions = placements.filter(placement => !placedIds.has(placement.entityId));
-      if (additions.length) {
-        existing.placements.push(...additions);
+      const existingPlacements = new Map(existing.placements.map(placement => [placement.entityId, placement]));
+      let assignedGroups = 0;
+      for (const placement of placements) {
+        const currentPlacement = existingPlacements.get(placement.entityId);
+        if (!currentPlacement || currentPlacement.groupId || !placement.groupId) continue;
+        currentPlacement.groupId = placement.groupId;
+        assignedGroups += 1;
+      }
+      if (additions.length || assignedGroups) {
+        if (additions.length) existing.placements.push(...additions);
         counts.updatedBoards += 1;
-        changes.push({ kind: 'board', action: 'update', label: existing.name, detail: `新增 ${additions.length} 个布局节点`, fields: ['placements'] });
+        const details = [];
+        if (additions.length) details.push(`新增 ${additions.length} 个布局节点`);
+        if (assignedGroups) details.push(`恢复 ${assignedGroups} 个分组成员`);
+        changes.push({ kind: 'board', action: 'update', label: existing.name, detail: details.join('；'), fields: ['placements'] });
       }
     }
 

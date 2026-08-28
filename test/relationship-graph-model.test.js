@@ -135,6 +135,41 @@ test('关系模型拒绝重复引用和悬空布局', () => {
   assert.throws(() => RelationshipGraphModel.assertValidStore(dangling), /不存在的节点/);
 });
 
+test('视觉分组成员关系只保存在同一白板布局中', () => {
+  const store = validStore();
+  store.entities.push({ id: 'entity_group001', type: 'group', name: '生产链路', details: {} });
+  store.boards[0].placements.push({ entityId: 'entity_group001', x: -40, y: -60 });
+  store.boards[0].placements[0].groupId = 'entity_group001';
+  store.boards[0].placements[1].groupId = 'entity_group001';
+
+  const normalized = RelationshipGraphModel.assertValidStore(store);
+
+  assert.equal(normalized.boards[0].placements[0].groupId, 'entity_group001');
+  assert.equal(normalized.boards[0].placements[1].groupId, 'entity_group001');
+  assert.equal(normalized.entities.find(entity => entity.id === 'entity_group001').type, 'group');
+});
+
+test('视觉分组拒绝悬空引用、非分组目标和嵌套分组', () => {
+  const missing = validStore();
+  missing.boards[0].placements[0].groupId = 'entity_missing1';
+  assert.throws(() => RelationshipGraphModel.assertValidStore(missing), /groupId.*不存在|分组.*当前白板/);
+
+  const wrongType = validStore();
+  wrongType.boards[0].placements[0].groupId = 'entity_server01';
+  assert.throws(() => RelationshipGraphModel.assertValidStore(wrongType), /groupId.*分组节点/);
+
+  const nested = validStore();
+  nested.entities.push(
+    { id: 'entity_group001', type: 'group', name: '外层', details: {} },
+    { id: 'entity_group002', type: 'group', name: '内层', details: {} }
+  );
+  nested.boards[0].placements.push(
+    { entityId: 'entity_group001', x: 0, y: 160, groupId: 'entity_group002' },
+    { entityId: 'entity_group002', x: 320, y: 160 }
+  );
+  assert.throws(() => RelationshipGraphModel.assertValidStore(nested), /分组节点不能归入其他分组/);
+});
+
 test('事实来源和验证时间使用受控值并规范化为 ISO 时间', () => {
   const store = validStore();
   store.relationships[2].source = 'observed';

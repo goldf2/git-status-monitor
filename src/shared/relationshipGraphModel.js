@@ -285,33 +285,41 @@
     return relationship;
   }
 
-  function normalizePlacement(raw, issues, boardIndex, index, entityIds, strict) {
+  function normalizePlacement(raw, issues, boardIndex, index, entitiesById, strict) {
     const prefix = `boards[${boardIndex}].placements[${index}]`;
     if (!isPlainObject(raw)) {
       issues.push(`${prefix} 必须是对象`);
       return null;
     }
     const entityId = String(raw.entityId || '');
-    if (!entityIds.has(entityId)) {
+    if (!entitiesById.has(entityId)) {
       issues.push(`${prefix}.entityId 引用了不存在的节点`);
       return null;
     }
+    const groupId = String(raw.groupId || '');
+    const entity = entitiesById.get(entityId);
+    const group = groupId ? entitiesById.get(groupId) : null;
+    if (groupId && entity?.type === 'group') issues.push(`${prefix} 分组节点不能归入其他分组`);
+    if (groupId && !group) issues.push(`${prefix}.groupId 引用了不存在的节点`);
+    if (groupId && group && group.type !== 'group') issues.push(`${prefix}.groupId 必须引用分组节点`);
     if (strict) {
       for (const key of Object.keys(raw)) {
-        if (!['entityId', 'x', 'y'].includes(key)) issues.push(`${prefix}.${key} 不是允许的字段`);
+        if (!['entityId', 'x', 'y', 'groupId'].includes(key)) issues.push(`${prefix}.${key} 不是允许的字段`);
       }
       if (!Number.isFinite(Number(raw.x)) || !Number.isFinite(Number(raw.y))) {
         issues.push(`${prefix} 坐标必须是有限数字`);
       }
     }
-    return {
+    const placement = {
       entityId,
       x: finiteNumber(raw.x, 0, -100000, 100000),
       y: finiteNumber(raw.y, 0, -100000, 100000)
     };
+    if (groupId && entity?.type !== 'group' && group?.type === 'group') placement.groupId = groupId;
+    return placement;
   }
 
-  function normalizeBoard(raw, issues, index, entityIds, strict) {
+  function normalizeBoard(raw, issues, index, entitiesById, strict) {
     const prefix = `boards[${index}]`;
     if (!isPlainObject(raw)) {
       issues.push(`${prefix} 必须是对象`);
@@ -329,7 +337,7 @@
     const rawPlacements = Array.isArray(raw.placements) ? raw.placements : [];
     if (!Array.isArray(raw.placements) && raw.placements != null) issues.push(`${prefix}.placements 必须是数组`);
     for (let placementIndex = 0; placementIndex < rawPlacements.length; placementIndex += 1) {
-      const placement = normalizePlacement(rawPlacements[placementIndex], issues, index, placementIndex, entityIds, strict);
+      const placement = normalizePlacement(rawPlacements[placementIndex], issues, index, placementIndex, entitiesById, strict);
       if (!placement) continue;
       if (seen.has(placement.entityId)) {
         issues.push(`${prefix}.placements 不能重复放置同一节点`);
@@ -337,6 +345,12 @@
       }
       seen.add(placement.entityId);
       placements.push(placement);
+    }
+    for (let placementIndex = 0; placementIndex < placements.length; placementIndex += 1) {
+      const placement = placements[placementIndex];
+      if (!placement.groupId || seen.has(placement.groupId)) continue;
+      issues.push(`${prefix}.placements[${placementIndex}].groupId 引用的分组不在当前白板`);
+      delete placement.groupId;
     }
     if (strict) {
       for (const key of Object.keys(raw)) {
@@ -418,7 +432,7 @@
     const boards = [];
     const boardIds = new Set();
     for (let index = 0; index < rawBoards.slice(0, MAX_BOARDS).length; index += 1) {
-      const board = normalizeBoard(rawBoards[index], issues, index, entityIds, strict);
+      const board = normalizeBoard(rawBoards[index], issues, index, entitiesById, strict);
       if (!board) continue;
       if (boardIds.has(board.id)) {
         issues.push(`boards[${index}].id 重复`);

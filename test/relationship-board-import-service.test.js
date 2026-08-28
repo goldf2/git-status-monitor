@@ -190,6 +190,71 @@ test('导入文件在预览后变化时拒绝应用且保留本机数据', t => 
   assert.deepEqual(boardStore.load().store, before);
 });
 
+test('导入新白板时重映射并保留视觉分组成员关系', t => {
+  const directory = makeTemporaryDirectory();
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const { boardStore, service } = setup(directory);
+  const imported = {
+    schemaVersion: 1,
+    activeBoardId: 'board_group0001',
+    entities: [
+      { id: 'entity_server01', type: 'server', name: 'Con01', details: {} },
+      { id: 'entity_group001', type: 'group', name: '生产环境', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_group0001',
+      name: '视觉分组',
+      viewport: { x: 0, y: 0, zoom: 1 },
+      placements: [
+        { entityId: 'entity_group001', x: 40, y: 40 },
+        { entityId: 'entity_server01', x: 100, y: 120, groupId: 'entity_group001' }
+      ]
+    }]
+  };
+
+  const merged = service._mergeStores(boardStore.load().store, imported);
+  const board = merged.store.boards.find(item => item.id === 'board_group0001');
+  const group = merged.store.entities.find(item => item.type === 'group' && item.name === '生产环境');
+  const member = board.placements.find(item => item.entityId === 'entity_server01');
+
+  assert.equal(member.groupId, group.id);
+});
+
+test('导入已有白板时只补充分组成员而不覆盖本机已有布局', t => {
+  const directory = makeTemporaryDirectory();
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const { boardStore, service } = setup(directory);
+  const imported = {
+    schemaVersion: 1,
+    activeBoardId: 'board_import001',
+    entities: [
+      { id: 'entity_server01', type: 'server', name: 'Con01', details: {} },
+      { id: 'entity_group001', type: 'group', name: '生产环境', details: {} }
+    ],
+    relationships: [],
+    boards: [{
+      id: 'board_import001',
+      name: '当前部署',
+      viewport: { x: 0, y: 0, zoom: 1 },
+      placements: [
+        { entityId: 'entity_group001', x: 40, y: 40 },
+        { entityId: 'entity_server01', x: 100, y: 120, groupId: 'entity_group001' }
+      ]
+    }]
+  };
+
+  const merged = service._mergeStores(boardStore.load().store, imported);
+  const board = merged.store.boards.find(item => item.id === 'board_import001');
+  const group = merged.store.entities.find(item => item.type === 'group' && item.name === '生产环境');
+  const member = board.placements.find(item => item.entityId === 'entity_server01');
+
+  assert.equal(member.groupId, group.id);
+  assert.equal(member.x, 500);
+  assert.equal(member.y, 80);
+  assert.match(merged.changes.find(change => change.kind === 'board').detail, /恢复 1 个分组成员/);
+});
+
 test('导入拒绝疑似凭据、符号链接和非关系白板结构', t => {
   const directory = makeTemporaryDirectory();
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));

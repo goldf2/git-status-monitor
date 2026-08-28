@@ -2,7 +2,7 @@
 
 面向本地开发工作的桌面工作台，逐步统一目录文件、Git、文档、终端与项目任务入口。Electron 桌面应用是主要产品，CLI 和仅本机 Web 页面用于辅助检查。
 
-长期边界与当前差距见 [CONTEXT.md](CONTEXT.md)、[产品差距分析](docs/PRODUCT_GAP_ANALYSIS.md) 和 [开发工作台 ADR](docs/adr/0001-development-workspace-shell.md)。v1.30.8 的目录终端入口与真实桌面验收见 [v1.30.8 验收记录](docs/v1.30.8-验收记录.md)；v1.28.0 的系统路径名复制与真实桌面验收见 [v1.28.0 验收记录](docs/v1.28.0-验收记录.md)。v1.26.0 的项目身份、文件冲突与 Windows x64 交付链见 [v1.26.0 验收记录](docs/v1.26.0-验收记录.md)、[本地项目身份 ADR](docs/adr/0007-local-project-identity.md) 和 [Windows 发布 ADR](docs/adr/0008-windows-release-gate.md)。
+长期边界与当前差距见 [CONTEXT.md](CONTEXT.md)、[产品差距分析](docs/PRODUCT_GAP_ANALYSIS.md) 和 [开发工作台 ADR](docs/adr/0001-development-workspace-shell.md)。v1.30.9 的关系白板视觉分组与真实桌面验收见 [v1.30.9 验收记录](docs/v1.30.9-验收记录.md)；v1.30.8 的目录终端入口见 [v1.30.8 验收记录](docs/v1.30.8-验收记录.md)。v1.26.0 的项目身份、文件冲突与 Windows x64 交付链见 [v1.26.0 验收记录](docs/v1.26.0-验收记录.md)、[本地项目身份 ADR](docs/adr/0007-local-project-identity.md) 和 [Windows 发布 ADR](docs/adr/0008-windows-release-gate.md)。
 
 ## 功能特性
 

@@ -7,6 +7,11 @@
   const NODE_HEIGHT = 94;
   const COMPACT_NODE_WIDTH = 180;
   const COMPACT_NODE_HEIGHT = 54;
+  const GROUP_PADDING_X = 28;
+  const GROUP_HEADER_HEIGHT = 54;
+  const GROUP_PADDING_BOTTOM = 28;
+  const GROUP_MIN_WIDTH = 320;
+  const GROUP_MIN_HEIGHT = 180;
   const GRID_SIZE = 24;
   const HISTORY_LIMIT = 50;
   const TYPE_LABELS = Object.freeze({
@@ -321,6 +326,47 @@
       return this._boardView().mode === 'compact'
         ? { width: COMPACT_NODE_WIDTH, height: COMPACT_NODE_HEIGHT }
         : { width: NODE_WIDTH, height: NODE_HEIGHT };
+    }
+
+    _placementGeometry(placement, placements = activeBoard(this.store)?.placements || []) {
+      const entitiesById = new Map((this.store?.entities || []).map(entity => [entity.id, entity]));
+      const entity = entitiesById.get(placement?.entityId);
+      if (entity?.type !== 'group') {
+        const { width, height } = this._nodeDimensions();
+        return { x: placement.x, y: placement.y, width, height };
+      }
+      const { width: nodeWidth, height: nodeHeight } = this._nodeDimensions();
+      const members = placements.filter(item => item.groupId === entity.id && entitiesById.get(item.entityId)?.type !== 'group');
+      if (!members.length) {
+        return { x: placement.x, y: placement.y, width: GROUP_MIN_WIDTH, height: GROUP_MIN_HEIGHT };
+      }
+      const minX = Math.min(...members.map(item => item.x));
+      const minY = Math.min(...members.map(item => item.y));
+      const maxX = Math.max(...members.map(item => item.x + nodeWidth));
+      const maxY = Math.max(...members.map(item => item.y + nodeHeight));
+      return {
+        x: minX - GROUP_PADDING_X,
+        y: minY - GROUP_HEADER_HEIGHT,
+        width: Math.max(GROUP_MIN_WIDTH, maxX - minX + GROUP_PADDING_X * 2),
+        height: Math.max(GROUP_MIN_HEIGHT, maxY - minY + GROUP_HEADER_HEIGHT + GROUP_PADDING_BOTTOM)
+      };
+    }
+
+    _movingEntityIds(entityId) {
+      const board = activeBoard(this.store);
+      if (!board) return [];
+      const placedIds = new Set(board.placements.map(item => item.entityId));
+      const selectedIds = this._entitySelectionIds();
+      const movingIds = new Set(selectedIds.has(entityId) ? selectedIds : [entityId]);
+      const groupIds = [...movingIds].filter(id => (
+        this.store.entities.find(entity => entity.id === id)?.type === 'group'
+      ));
+      for (const groupId of groupIds) {
+        for (const placement of board.placements) {
+          if (placement.groupId === groupId) movingIds.add(placement.entityId);
+        }
+      }
+      return [...movingIds].filter(id => placedIds.has(id));
     }
 
     _entitySelectionIds() {
@@ -754,6 +800,19 @@
         this._verifySelectedNow();
         return;
       }
+      if (action === 'create-group-from-selection') {
+        this._createGroupFromSelection();
+        return;
+      }
+      if (action === 'assign-selection-group') {
+        const groupId = this.root.querySelector('[data-relationship-group-target]')?.value || '';
+        this._assignSelectionToGroup(groupId);
+        return;
+      }
+      if (action === 'remove-selection-group') {
+        this._removeSelectionFromGroups();
+        return;
+      }
 
       const locateEntityId = event.target.closest('[data-relationship-locate-entity]')?.dataset.relationshipLocateEntity;
       if (locateEntityId) {
@@ -958,7 +1017,22 @@
         this.selectedRelationshipId = '';
       }
       const entitiesById = new Map(this.store.entities.map(entity => [entity.id, entity]));
-      nodeLayer.innerHTML = graph.placements.map(placement => {
+      const groupFrames = graph.placements.filter(placement => entitiesById.get(placement.entityId)?.type === 'group');
+      const regularNodes = graph.placements.filter(placement => entitiesById.get(placement.entityId)?.type !== 'group');
+      nodeLayer.innerHTML = groupFrames.map(placement => {
+        const entity = entitiesById.get(placement.entityId);
+        const geometry = this._placementGeometry(placement, graph.placements);
+        const memberCount = graph.placements.filter(item => item.groupId === entity.id).length;
+        return `
+          <article class="relationship-node relationship-group-frame${graph.contextualIds.has(entity.id) ? ' filter-context' : ''}" data-entity-id="${escapeHtml(entity.id)}" data-entity-type="group" tabindex="0" role="button" aria-label="${escapeHtml(entity.name)}，视觉分组，${memberCount} 个成员" aria-pressed="false" style="transform:translate(${geometry.x}px,${geometry.y}px);width:${geometry.width}px;height:${geometry.height}px">
+            <div class="relationship-node-header">
+              <span class="relationship-node-icon">${TYPE_ICONS.group}</span>
+              <span class="relationship-node-title" title="${escapeHtml(entity.name)}">${escapeHtml(entity.name)}</span>
+              <span class="relationship-node-kind">${memberCount} 个成员</span>
+            </div>
+            <div class="relationship-node-subtitle">${escapeHtml(entity.details?.notes || '视觉整理，不参与事实推理')}</div>
+          </article>`;
+      }).join('') + regularNodes.map(placement => {
         const entity = entitiesById.get(placement.entityId);
         if (!entity) return '';
         const resource = entity.refId ? this.resourceMap.get(`${entity.type}:${entity.refId}`) : null;
@@ -1222,6 +1296,16 @@
       const selectedIds = this._entitySelectionIds();
       if (selectedIds.size > 1) {
         const selectedEntities = this.store.entities.filter(entity => selectedIds.has(entity.id));
+        const selectedMembers = selectedEntities.filter(entity => entity.type !== 'group');
+        const board = activeBoard(this.store);
+        const groupOptions = (board?.placements || []).map(placement => (
+          this.store.entities.find(entity => entity.id === placement.entityId)
+        )).filter(entity => entity?.type === 'group').map(entity => (
+          `<option value="${escapeHtml(entity.id)}">${escapeHtml(entity.name)}</option>`
+        )).join('');
+        const hasGroupedMembers = (board?.placements || []).some(placement => (
+          selectedIds.has(placement.entityId) && Boolean(placement.groupId)
+        ));
         panel.hidden = false;
         body.classList.add('has-inspector');
         panel.innerHTML = `
@@ -1232,6 +1316,14 @@
           <div class="relationship-multi-selection">
             <p>可以一起拖动、使用方向键移动，或按 Delete 移出当前白板。</p>
             <ul>${selectedEntities.slice(0, 8).map(entity => `<li>${escapeHtml(this._entityDisplayName(entity))}<small>${TYPE_LABELS[entity.type]}</small></li>`).join('')}${selectedEntities.length > 8 ? `<li>另有 ${selectedEntities.length - 8} 个节点…</li>` : ''}</ul>
+            ${selectedMembers.length ? `
+              <section class="relationship-multi-group-actions" aria-label="视觉分组操作">
+                <strong>视觉分组</strong>
+                <button class="relationship-primary-button" type="button" data-relationship-action="create-group-from-selection">建立视觉分组…</button>
+                ${groupOptions ? `<div><select data-relationship-group-target aria-label="选择已有分组">${groupOptions}</select><button class="relationship-secondary-button" type="button" data-relationship-action="assign-selection-group">归入分组</button></div>` : ''}
+                <button class="relationship-secondary-button" type="button" data-relationship-action="remove-selection-group" ${hasGroupedMembers ? '' : 'disabled'}>移出分组</button>
+                <small>分组只整理当前白板布局，不会新增关系事实。</small>
+              </section>` : ''}
             <p class="relationship-inspector-boundary">为避免混淆来源与核验状态，事实字段必须逐个节点编辑。</p>
           </div>`;
         return;
@@ -1245,6 +1337,7 @@
       }
 
       const fact = selected.value;
+      const isVisualGroup = selected.kind === 'entity' && fact.type === 'group';
       let heading = '';
       let subheading = '';
       let identityHtml = '';
@@ -1289,14 +1382,15 @@
           ${identityHtml}
           ${editableFields}
           ${contextHtml}
-          <div class="relationship-inspector-section-title">事实与核验</div>
-          ${this._factFieldsHtml(fact)}
+          ${isVisualGroup ? '<p class="relationship-inspector-boundary">视觉分组只属于当前白板布局，不参与部署或 Git 事实推理。</p>' : `
+            <div class="relationship-inspector-section-title">事实与核验</div>
+            ${this._factFieldsHtml(fact)}`}
           <p class="relationship-inspector-error" role="alert"></p>
           <div class="relationship-inspector-actions">
-            <button class="relationship-secondary-button" type="button" data-relationship-action="verify-now">标记为刚刚验证</button>
-            <button class="relationship-primary-button" type="submit" data-inspector-save disabled>保存事实</button>
+            ${isVisualGroup ? '' : '<button class="relationship-secondary-button" type="button" data-relationship-action="verify-now">标记为刚刚验证</button>'}
+            <button class="relationship-primary-button" type="submit" data-inspector-save disabled>${isVisualGroup ? '保存分组' : '保存事实'}</button>
           </div>
-          <p class="relationship-inspector-boundary">只修改 GitFinder 本机关系事实，不会连接服务器、执行部署或修改 Git。</p>
+          ${isVisualGroup ? '' : '<p class="relationship-inspector-boundary">只修改 GitFinder 本机关系事实，不会连接服务器、执行部署或修改 Git。</p>'}
         </form>`;
     }
 
@@ -1330,20 +1424,23 @@
           target.details = details;
         }
 
-        const source = String(data.get('source') || '');
-        const verifiedAt = localDateTimeToIso(data.get('verifiedAt'));
-        const reviewIntervalInput = String(data.get('reviewIntervalDays') || '').trim();
-        const evidenceSummary = String(data.get('evidenceSummary') || '');
-        if (source) target.source = source; else delete target.source;
-        if (verifiedAt) target.verifiedAt = verifiedAt; else delete target.verifiedAt;
-        if (reviewIntervalInput) {
-          const reviewIntervalDays = Number(reviewIntervalInput);
-          if (!Number.isInteger(reviewIntervalDays) || reviewIntervalDays < 1 || reviewIntervalDays > 3650) {
-            throw new Error('复核周期必须是 1 到 3650 之间的整数天数');
-          }
-          target.reviewIntervalDays = reviewIntervalDays;
-        } else delete target.reviewIntervalDays;
-        if (evidenceSummary.trim()) target.evidenceSummary = evidenceSummary; else delete target.evidenceSummary;
+        const isVisualGroup = kind === 'entity' && target.type === 'group';
+        if (!isVisualGroup) {
+          const source = String(data.get('source') || '');
+          const verifiedAt = localDateTimeToIso(data.get('verifiedAt'));
+          const reviewIntervalInput = String(data.get('reviewIntervalDays') || '').trim();
+          const evidenceSummary = String(data.get('evidenceSummary') || '');
+          if (source) target.source = source; else delete target.source;
+          if (verifiedAt) target.verifiedAt = verifiedAt; else delete target.verifiedAt;
+          if (reviewIntervalInput) {
+            const reviewIntervalDays = Number(reviewIntervalInput);
+            if (!Number.isInteger(reviewIntervalDays) || reviewIntervalDays < 1 || reviewIntervalDays > 3650) {
+              throw new Error('复核周期必须是 1 到 3650 之间的整数天数');
+            }
+            target.reviewIntervalDays = reviewIntervalDays;
+          } else delete target.reviewIntervalDays;
+          if (evidenceSummary.trim()) target.evidenceSummary = evidenceSummary; else delete target.evidenceSummary;
+        }
 
         const normalized = Model.assertValidStore(nextStore);
         if (JSON.stringify(normalized) === JSON.stringify(this.store)) {
@@ -1358,7 +1455,7 @@
         this._renderGraph();
         this._refreshHistoryButtons();
         this._updateSummary();
-        this._setCanvasAnnouncement('关系事实已保存');
+        this._setCanvasAnnouncement(isVisualGroup ? '视觉分组已保存' : '关系事实已保存');
         return true;
       } catch (error) {
         this._showInspectorError(form, error?.message || String(error));
@@ -1441,6 +1538,20 @@
       }
     }
 
+    _updateGroupFrames() {
+      const graph = this._filteredGraph();
+      const entitiesById = new Map(this.store.entities.map(entity => [entity.id, entity]));
+      for (const placement of graph.placements) {
+        if (entitiesById.get(placement.entityId)?.type !== 'group') continue;
+        const frame = this.root?.querySelector(`[data-entity-id="${escapeSelectorValue(placement.entityId)}"]`);
+        if (!frame) continue;
+        const geometry = this._placementGeometry(placement, graph.placements);
+        frame.style.transform = `translate(${geometry.x}px,${geometry.y}px)`;
+        frame.style.width = `${geometry.width}px`;
+        frame.style.height = `${geometry.height}px`;
+      }
+    }
+
     _handlePointerDown(event) {
       if (event.button !== 0 && event.button !== 1) return;
       const canvas = event.target.closest('.relationship-canvas');
@@ -1472,8 +1583,7 @@
         } else if (!event.metaKey && !event.ctrlKey && !this._entitySelectionIds().has(entityId)) {
           this._selectOnlyEntity(entityId);
         }
-        const selectedIds = this._entitySelectionIds();
-        const movingIds = selectedIds.has(entityId) ? [...selectedIds] : [entityId];
+        const movingIds = this._movingEntityIds(entityId);
         const origins = new Map(activeBoard(this.store).placements
           .filter(item => movingIds.includes(item.entityId))
           .map(item => [item.entityId, { x: item.x, y: item.y }]));
@@ -1547,6 +1657,7 @@
           const node = this.root.querySelector(`[data-entity-id="${escapeSelectorValue(entityId)}"]`);
           if (node) node.style.transform = `translate(${placement.x}px,${placement.y}px)`;
         }
+        this._updateGroupFrames();
         this._updateEdges();
         return;
       }
@@ -1656,11 +1767,12 @@
       const top = Math.min(startY, endY);
       const right = Math.max(startX, endX);
       const bottom = Math.max(startY, endY);
-      const { width, height } = this._nodeDimensions();
-      return this._filteredGraph().placements.filter(placement => (
-        placement.x < right && placement.x + width > left
-        && placement.y < bottom && placement.y + height > top
-      )).map(placement => placement.entityId);
+      const placements = this._filteredGraph().placements;
+      return placements.filter(placement => {
+        const geometry = this._placementGeometry(placement, placements);
+        return geometry.x < right && geometry.x + geometry.width > left
+          && geometry.y < bottom && geometry.y + geometry.height > top;
+      }).map(placement => placement.entityId);
     }
 
     _hideSelectionBox() {
@@ -1887,6 +1999,82 @@
       this._updateSummary();
     }
 
+    _selectedMemberPlacements() {
+      const selectedIds = this._entitySelectionIds();
+      const entitiesById = new Map(this.store.entities.map(entity => [entity.id, entity]));
+      return (activeBoard(this.store)?.placements || []).filter(placement => (
+        selectedIds.has(placement.entityId) && entitiesById.get(placement.entityId)?.type !== 'group'
+      ));
+    }
+
+    async _createGroupFromSelection() {
+      const members = this._selectedMemberPlacements();
+      if (!members.length) {
+        this.notify('请先选择要整理的节点', 'warning');
+        return false;
+      }
+      if (this.store.entities.length >= Model.MAX_ENTITIES) {
+        this.notify(`最多保存 ${Model.MAX_ENTITIES} 个关系节点`, 'warning');
+        return false;
+      }
+      const values = await this._openFormDialog({
+        title: '建立视觉分组',
+        submitLabel: '建立分组',
+        fields: [{ key: 'name', label: '分组名称', value: '新分组', required: true, maxLength: 160 }]
+      });
+      if (!values) return false;
+      const groupId = makeId('entity');
+      this._recordMutation();
+      this.store.entities.push({ id: groupId, type: 'group', name: values.name, details: {}, source: 'manual' });
+      const minX = Math.min(...members.map(item => item.x));
+      const minY = Math.min(...members.map(item => item.y));
+      activeBoard(this.store).placements.push({
+        entityId: groupId,
+        x: minX - GROUP_PADDING_X,
+        y: minY - GROUP_HEADER_HEIGHT
+      });
+      for (const placement of members) placement.groupId = groupId;
+      this._selectOnlyEntity(groupId);
+      this._persistSoon(0);
+      this._renderGraph();
+      this._refreshHistoryButtons();
+      this._updateSummary();
+      this._setCanvasAnnouncement(`已建立视觉分组 ${values.name}，包含 ${members.length} 个节点`);
+      return true;
+    }
+
+    _assignSelectionToGroup(groupId) {
+      const board = activeBoard(this.store);
+      const group = this.store.entities.find(entity => entity.id === groupId && entity.type === 'group');
+      if (!board || !group || !board.placements.some(placement => placement.entityId === groupId)) {
+        this.notify('所选视觉分组已不在当前白板', 'warning');
+        return false;
+      }
+      const members = this._selectedMemberPlacements().filter(placement => placement.groupId !== groupId);
+      if (!members.length) return false;
+      this._recordMutation();
+      for (const placement of members) placement.groupId = groupId;
+      this._persistSoon(0);
+      this._renderGraph();
+      this._refreshHistoryButtons();
+      this._updateSummary();
+      this._setCanvasAnnouncement(`已将 ${members.length} 个节点归入 ${group.name}`);
+      return true;
+    }
+
+    _removeSelectionFromGroups() {
+      const members = this._selectedMemberPlacements().filter(placement => placement.groupId);
+      if (!members.length) return false;
+      this._recordMutation();
+      for (const placement of members) delete placement.groupId;
+      this._persistSoon(0);
+      this._renderGraph();
+      this._refreshHistoryButtons();
+      this._updateSummary();
+      this._setCanvasAnnouncement(`已将 ${members.length} 个节点移出视觉分组`);
+      return true;
+    }
+
     _deleteSelection() {
       if (this.selectedRelationshipId) {
         const index = this.store.relationships.findIndex(item => item.id === this.selectedRelationshipId);
@@ -1900,6 +2088,9 @@
         if (!board.placements.some(item => selectedIds.has(item.entityId))) return;
         this._recordMutation();
         board.placements = board.placements.filter(item => !selectedIds.has(item.entityId));
+        for (const placement of board.placements) {
+          if (placement.groupId && selectedIds.has(placement.groupId)) delete placement.groupId;
+        }
         const orphanedIds = new Set([...selectedIds].filter(entityId => (
           !this.store.boards.some(candidate => candidate.placements.some(item => item.entityId === entityId))
         )));
@@ -1957,15 +2148,15 @@
       const canvas = this.root?.querySelector('.relationship-canvas');
       if (!board || !canvas) return;
       const placements = this._filteredGraph().placements;
-      const { width: nodeWidth, height: nodeHeight } = this._nodeDimensions();
       if (!placements.length) {
         board.viewport = { x: 120, y: 90, zoom: 1 };
       } else {
         const rect = canvas.getBoundingClientRect();
-        const minX = Math.min(...placements.map(item => item.x));
-        const minY = Math.min(...placements.map(item => item.y));
-        const maxX = Math.max(...placements.map(item => item.x + nodeWidth));
-        const maxY = Math.max(...placements.map(item => item.y + nodeHeight));
+        const geometries = placements.map(item => this._placementGeometry(item, placements));
+        const minX = Math.min(...geometries.map(item => item.x));
+        const minY = Math.min(...geometries.map(item => item.y));
+        const maxX = Math.max(...geometries.map(item => item.x + item.width));
+        const maxY = Math.max(...geometries.map(item => item.y + item.height));
         const width = Math.max(1, maxX - minX);
         const height = Math.max(1, maxY - minY);
         const zoom = Math.min(1.5, Math.max(0.35, Math.min((rect.width - 120) / width, (rect.height - 120) / height)));
@@ -2019,7 +2210,8 @@
       const selectedIds = this._entitySelectionIds();
       if (!selectedIds.size || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
-      const placements = activeBoard(this.store).placements.filter(item => selectedIds.has(item.entityId));
+      const movingIds = new Set(this._movingEntityIds(this.selectedEntityId || selectedIds.values().next().value));
+      const placements = activeBoard(this.store).placements.filter(item => movingIds.has(item.entityId));
       if (!placements.length) return;
       this._recordMutation();
       const step = event.shiftKey ? 24 : 8;
