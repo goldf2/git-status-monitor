@@ -308,6 +308,29 @@
   font-size: 12px;
 }
 
+.directory-load-state {
+  min-height: min(420px, calc(100vh - 250px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 32px;
+  color: var(--text-tertiary);
+  text-align: center;
+  font-size: 12px;
+}
+
+.directory-load-state strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.directory-load-state .loading-spinner {
+  margin-bottom: 3px;
+}
+
 .file-label-collection-loading,
 .file-label-collection-empty {
   min-height: min(420px, calc(100vh - 250px));

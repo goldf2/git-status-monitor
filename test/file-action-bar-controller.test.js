@@ -41,6 +41,7 @@ function createHarness() {
     selectedPaths: new Set(),
     fileClipboard: null,
     fileOperationBusy: false,
+    directoryLoad: null,
     fileOperationHistory: [],
     currentPath: '/workspace'
   };
@@ -138,6 +139,21 @@ test('忙碌、搜索与历史状态分别控制写操作和撤销重做', () =>
   harness.controller.update();
   assert.equal(element('file-undo').disabled, false);
   assert.equal(element('file-redo').disabled, false);
+});
+
+test('目录载入期间禁用文件写操作并显示真实状态', () => {
+  const harness = createHarness();
+  harness.state.directoryLoad = { status: 'loading' };
+  harness.state.fileClipboard = { paths: ['/workspace/source'] };
+  harness.controller.update();
+  const element = id => harness.document.getElementById(id);
+
+  assert.equal(element('file-selection-summary').textContent, '正在载入当前文件夹…');
+  assert.equal(element('file-new-folder').disabled, true);
+  assert.equal(element('file-new-file').disabled, true);
+  assert.equal(element('file-paste').disabled, true);
+  assert.equal(element('file-create-menu-trigger').disabled, true);
+  assert.equal(element('file-history').disabled, false);
 });
 
 test('跨目录标签集合保留选择操作但禁用没有唯一目标目录的动作', () => {

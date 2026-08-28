@@ -13,15 +13,24 @@ $InstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\GitFinder'
 $InstalledExe = Join-Path $InstallDirectory 'GitFinder.exe'
 $Uninstaller = Join-Path $InstallDirectory 'Uninstall GitFinder.exe'
 $ReportPath = Join-Path $DistDirectory 'windows-install-verification.json'
+$StartupLogPath = Join-Path $env:TEMP 'git-status-monitor-startup.log'
 $Processes = @()
 $Installed = $false
 
 function Assert-ApplicationStarts([string]$Executable, [string]$Label) {
-  $Process = Start-Process -FilePath $Executable -ArgumentList '--disable-gpu' -PassThru
+  if (Test-Path -LiteralPath $StartupLogPath -PathType Leaf) {
+    Set-Content -LiteralPath $StartupLogPath -Value '' -Encoding utf8
+  }
+  $Process = Start-Process -FilePath $Executable -PassThru
   $script:Processes += $Process
   Start-Sleep -Seconds 8
   if ($Process.HasExited) {
-    throw "$Label exited during startup with code $($Process.ExitCode)"
+    $LogTail = if (Test-Path -LiteralPath $StartupLogPath -PathType Leaf) {
+      (Get-Content -LiteralPath $StartupLogPath -Tail 40) -join [Environment]::NewLine
+    } else {
+      'No JavaScript startup log was written.'
+    }
+    throw "$Label exited during default startup with code $($Process.ExitCode). Startup log: $LogTail"
   }
   & taskkill.exe /PID $Process.Id /T /F | Out-Null
   if ($LASTEXITCODE -ne 0 -and -not $Process.HasExited) {
@@ -60,7 +69,7 @@ try {
 
   $Signature = (Get-AuthenticodeSignature -LiteralPath $Installer).Status.ToString()
   $Report = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     generatedAt = (Get-Date).ToUniversalTime().ToString('o')
     version = $Version
     platform = 'windows'
@@ -69,6 +78,8 @@ try {
     zip = [ordered]@{ file = (Split-Path -Leaf $Zip); sha256 = $ZipHash }
     signatureStatus = $Signature
     unsignedTestBuild = ($Signature -ne 'Valid')
+    defaultStartup = $true
+    windowsSoftwareRendering = $true
     unpackedStartup = $true
     installedStartup = $true
     installVerified = $true

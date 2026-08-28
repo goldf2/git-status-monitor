@@ -29,6 +29,20 @@
         .sort((left, right) => Number(right.undoneAt) - Number(left.undoneAt))[0];
     }
 
+    directoryUnavailableMessage() {
+      const status = this.state.directoryLoad?.status;
+      if (status === 'loading') return '请等待当前文件夹载入完成';
+      if (status === 'error') return '当前文件夹不可用，请重新载入或选择其他文件夹';
+      return '';
+    }
+
+    blockUnavailableDirectory() {
+      const message = this.directoryUnavailableMessage();
+      if (!message) return false;
+      this.app._showStatusMessage(message, 'info');
+      return true;
+    }
+
     async loadHistory() {
       try {
         const [history, recovery] = await Promise.all([
@@ -57,6 +71,7 @@
     }
 
     copySelectedItems() {
+      if (this.blockUnavailableDirectory()) return;
       const items = this.app.getSelectedFileItems();
       if (!items.length || this.state.fileOperationBusy) return;
       this.state.fileClipboard = {
@@ -70,6 +85,7 @@
     }
 
     async copySelectedPathnames() {
+      if (this.blockUnavailableDirectory()) return false;
       const items = this.app.getSelectedFileItems();
       if (!items.length || this.state.fileOperationBusy) {
         if (!items.length) this.app._showStatusMessage('请先选择文件或文件夹', 'info');
@@ -89,6 +105,7 @@
     }
 
     cutSelectedItems() {
+      if (this.blockUnavailableDirectory()) return;
       const items = this.app.getSelectedFileItems();
       if (!items.length || this.state.fileOperationBusy) return;
       this.state.fileClipboard = {
@@ -101,6 +118,7 @@
     }
 
     async pasteFileClipboard({ move = false } = {}) {
+      if (this.blockUnavailableDirectory()) return;
       const clipboard = this.state.fileClipboard;
       if (!clipboard?.paths?.length || this.state.fileOperationBusy) return;
       if (!this.app.isDirectoryBrowsingContext() || this.app.isGlobalSearchActive() || !this.state.currentPath) {
@@ -117,6 +135,7 @@
     }
 
     async duplicateSelectedItems() {
+      if (this.blockUnavailableDirectory()) return;
       const items = this.app.getSelectedFileItems();
       if (!items.length || this.state.fileOperationBusy || !this.app.isDirectoryBrowsingContext()) return;
       await this.app.openTransferReview(
@@ -128,6 +147,7 @@
     }
 
     async undoLastFileOperation() {
+      if (this.blockUnavailableDirectory()) return;
       const operation = this.latestUndoable();
       if (!operation || this.state.fileOperationBusy) return;
       await this.run(
@@ -137,6 +157,7 @@
     }
 
     async redoLastFileOperation() {
+      if (this.blockUnavailableDirectory()) return;
       const operation = this.latestRedoable();
       if (!operation || this.state.fileOperationBusy) return;
       await this.run(
@@ -146,6 +167,7 @@
     }
 
     async run(action, successMessage) {
+      if (this.blockUnavailableDirectory()) return false;
       this.app.closeQuickLook();
       this.state.fileOperationBusy = true;
       this.app.updateFileActionBar();
@@ -207,6 +229,7 @@
         return true;
       }
       if (decision.kind === 'noop') return true;
+      if (this.blockUnavailableDirectory()) return true;
 
       const selectedCount = this.state.selectedPaths.size;
       if ((decision.action === 'copy' || decision.action === 'cut') && selectedCount === 0) {
@@ -239,6 +262,7 @@
     }
 
     selectAllVisibleFiles() {
+      if (this.blockUnavailableDirectory()) return;
       return this.app.selectAllVisibleFiles();
     }
 

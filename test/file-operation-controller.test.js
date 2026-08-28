@@ -14,6 +14,7 @@ function createHarness(overrides = {}) {
     visibleItems: [{ path: '/workspace/a.txt', name: 'a.txt', type: 'file' }],
     fileOperationHistory: [],
     fileOperationBusy: false,
+    directoryLoad: null,
     fileRecoveryStatus: null,
     fileClipboard: null,
     ...overrides.state
@@ -147,6 +148,32 @@ test('聚合内容筛选不会把当前路径误当成可写入目录', async ()
   await controller.duplicateSelectedItems();
   assert.equal(calls.some(call => Array.isArray(call) && call[0] === 'transfer'), false);
   assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'status' && call[2] === 'error'));
+});
+
+test('目录加载或失败期间快捷键不能对旧选择执行文件操作', async () => {
+  const { controller, state, calls } = createHarness({
+    state: {
+      directoryLoad: { status: 'loading' },
+      fileClipboard: { operation: 'move', paths: ['/workspace/old.txt'] },
+      fileOperationHistory: [{ id: 'undo-1', undoable: true }]
+    }
+  });
+
+  controller.copySelectedItems();
+  controller.cutSelectedItems();
+  assert.equal(await controller.copySelectedPathnames(), false);
+  await controller.pasteFileClipboard();
+  await controller.duplicateSelectedItems();
+  await controller.undoLastFileOperation();
+
+  assert.deepEqual(state.fileClipboard, { operation: 'move', paths: ['/workspace/old.txt'] });
+  assert.equal(calls.some(call => Array.isArray(call) && call[0] === 'transfer'), false);
+  assert.equal(calls.some(call => call === 'content'), false);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'status' && /载入/.test(call[1])));
+
+  state.directoryLoad = { status: 'error' };
+  assert.equal(await controller.run(async () => assert.fail('不应执行操作'), '不应完成'), false);
+  assert.ok(calls.some(call => Array.isArray(call) && call[0] === 'status' && /不可用/.test(call[1])));
 });
 
 test('撤销和重做候选保持历史与撤销时间语义', () => {

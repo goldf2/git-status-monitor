@@ -30,8 +30,18 @@ test('Windows CI 在 windows-latest 执行运行时、安装、启动和卸载�
   assert.match(workflow, /windows-install-verification\.json/);
   assert.match(acceptance, /win-unpacked\\GitFinder\.exe/);
   assert.match(acceptance, /Assert-ApplicationStarts \$UnpackedExe/);
+  assert.doesNotMatch(acceptance, /--disable-gpu/);
+  assert.match(acceptance, /defaultStartup = \$true/);
   assert.match(acceptance, /Uninstall GitFinder\.exe/);
   assert.match(acceptance, /Get-FileHash/);
+});
+
+test('Windows 默认使用软件渲染并记录 GPU 或渲染进程崩溃', () => {
+  const mainSource = fs.readFileSync(path.join(projectRoot, 'main.js'), 'utf8');
+  assert.match(mainSource, /process\.platform === 'win32'[\s\S]*app\.disableHardwareAcceleration\(\)/);
+  assert.match(mainSource, /app\.on\('child-process-gone'/);
+  assert.match(mainSource, /webContents\.on\('render-process-gone'/);
+  assert.match(mainSource, /git-status-monitor-startup\.log/);
 });
 
 test('Windows 运行时验证覆盖项目配置、Git、复制移动和系统回收站', () => {

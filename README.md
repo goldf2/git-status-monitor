@@ -180,7 +180,7 @@ npm run pack:win
 
 `npm run pack` 和默认的 `npm run dist` 都只生成开发包，并在 `dist/release-verification.json` 中明确记录 `eligibleForDistribution: false`。正式发布不能通过改名或手工上传该 ZIP 完成；它必须从与 `package.json` 一致的版本标签构建，使用 Developer ID Application 签名、Hardened Runtime 和安全时间戳，通过 Apple 公证、票据验证与 Gatekeeper 后，验证报告才会标记为可分发。证书和公证凭据配置见 [自动更新发布说明](docs/自动更新发布说明.md)。
 
-Windows 构建脚本会在非 Windows 主机上直接失败，避免把 macOS 交叉打包误报为真实验证。`windows-latest` CI 会运行项目配置、Git for Windows、复制/移动/回收站验收，再检查免安装启动、NSIS 静默安装、安装后启动与卸载。产物附带版本、x64、SHA-256 和签名/安装验证报告；签名状态不是 `Valid` 时只上传为 `unsigned-test-build` CI 附件，明确保留 SmartScreen 风险，不进入稳定 GitHub Release。
+Windows 构建脚本会在非 Windows 主机上直接失败，避免把 macOS 交叉打包误报为真实验证。`windows-latest` CI 会运行项目配置、Git for Windows、复制/移动/回收站验收，再检查免安装默认启动、NSIS 静默安装、安装后默认启动与卸载；启动门禁不再附加会掩盖虚拟显卡问题的 `--disable-gpu` 参数。GitFinder 的文件管理和关系白板不依赖 GPU，因此 Windows 默认使用 Electron 软件渲染，并关闭 WebGL，以提高 Parallels、VMware、VirtualBox 等虚拟显卡环境的启动兼容性；GPU、渲染进程和主进程异常会写入 `%TEMP%\git-status-monitor-startup.log`。产物附带版本、x64、SHA-256 和签名/安装验证报告；签名状态不是 `Valid` 时只上传为 `unsigned-test-build` CI 附件，明确保留 SmartScreen 风险，不进入稳定 GitHub Release。
 
 ## API 接口
 

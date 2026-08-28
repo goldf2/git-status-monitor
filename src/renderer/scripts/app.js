@@ -25,6 +25,7 @@ const AppState = {
   visibleItems: [],
   fileDisplayOrder: [],
   directoryRenderRequestId: 0,
+  directoryLoad: null,
   directoryRenderProgress: null,
   directoryPerformance: null,
   fileOperationHistory: [],
@@ -2508,6 +2509,10 @@ const App = {
     return this.isDirectoryBrowsingContext() || this.contentCollectionKind() === 'file-labels';
   },
 
+  isDirectoryLoadBlocked() {
+    return window.DirectoryLoadState.status(AppState) !== 'idle';
+  },
+
   isContentCollection() {
     return AppState.currentMode === 'tree' && window.ContentQuery.isCollection(AppState.contentQuery);
   },
@@ -4298,6 +4303,18 @@ const App = {
     const fileLabelCollectionMode = AppState.currentMode === 'tree'
       && window.ContentQuery.collectionKind(query) === 'file-labels';
     const fileContentMode = currentDirectoryMode || fileLabelCollectionMode;
+    const directoryLoadStatus = currentDirectoryMode
+      ? window.DirectoryLoadState.status(AppState)
+      : 'idle';
+    const directoryBlocked = directoryLoadStatus !== 'idle';
+    const directoryFilterTrigger = document.getElementById('directory-filter-menu-trigger');
+    if (directoryFilterTrigger) {
+      directoryFilterTrigger.disabled = directoryBlocked;
+      directoryFilterTrigger.setAttribute('aria-busy', directoryLoadStatus === 'loading' ? 'true' : 'false');
+      directoryFilterTrigger.title = directoryLoadStatus === 'loading'
+        ? '正在载入当前目录内容'
+        : (directoryLoadStatus === 'error' ? '当前目录无法载入' : '筛选当前目录内容');
+    }
     const scopeHeading = document.getElementById('directory-filter-scope-heading');
     if (scopeHeading) scopeHeading.textContent = fileLabelCollectionMode ? '标签集合' : '当前目录';
     document.querySelectorAll('.directory-base-btn').forEach(button => {
@@ -4305,21 +4322,25 @@ const App = {
       const active = fileContentMode && type === query.baseType;
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', active ? 'true' : 'false');
-      button.disabled = !fileContentMode;
+      button.disabled = !fileContentMode || directoryBlocked;
       const label = button.querySelector('span:last-child');
       const labels = { all: '全部', directory: '文件夹', file: '文件' };
-      if (label) label.textContent = `${labels[type]} ${counts[type] || 0}`;
+      if (label) label.textContent = directoryBlocked
+        ? labels[type]
+        : `${labels[type]} ${counts[type] || 0}`;
     });
     document.querySelectorAll('.directory-attribute-btn').forEach(button => {
       const attribute = button.dataset.contentAttribute;
       const active = currentDirectoryMode && (attribute === 'project' ? query.projectOnly : query.repositoryOnly);
       button.classList.toggle('active', active);
       button.setAttribute('aria-checked', active ? 'true' : 'false');
-      button.disabled = !currentDirectoryMode;
+      button.disabled = !currentDirectoryMode || directoryBlocked;
       const label = button.querySelector('span:last-child');
-      if (label) label.textContent = attribute === 'project'
-        ? `项目 ${counts.project || 0}`
-        : `Git 仓库 ${counts.repository || 0}`;
+      if (label) label.textContent = directoryBlocked
+        ? (attribute === 'project' ? '项目' : 'Git 仓库')
+        : (attribute === 'project'
+            ? `项目 ${counts.project || 0}`
+            : `Git 仓库 ${counts.repository || 0}`);
     });
     const projectCountQuery = window.ContentQuery.normalize({
       ...window.ContentQuery.queryForPreset('all-projects'),
@@ -4364,7 +4385,9 @@ const App = {
     const advancedSuffix = advancedCount ? ` · ${advancedCount} 条件` : '';
     if (triggerLabel) {
       const collectionKind = window.ContentQuery.collectionKind(query);
-      if (collectionKind === 'file-labels') {
+      if (directoryLoadStatus === 'loading') triggerLabel.textContent = '当前目录 · 正在载入…';
+      else if (directoryLoadStatus === 'error') triggerLabel.textContent = '当前目录 · 无法载入';
+      else if (collectionKind === 'file-labels') {
         const names = this.fileLabelCollectionLabels(query).map(label => label.name).join(' + ') || '文件标签';
         const count = items.filter(item => window.ContentQuery.matchesAttributes(item, query)).length;
         triggerLabel.textContent = `所有位置 · ${names} ${count}${advancedSuffix}`;
@@ -4651,8 +4674,10 @@ const App = {
     this.directoryVirtualizer?.destroy();
     this.directoryVirtualizer = null;
     AppState.directoryRenderProgress = null;
+    window.DirectoryLoadState.cancel(AppState);
     const contentArea = document.getElementById('content-area');
     contentArea?.classList.remove('directory-progress-active');
+    contentArea?.classList.remove('directory-load-active');
     contentArea?.removeAttribute('aria-busy');
     contentArea?.querySelector('[data-directory-render-progress]')?.remove();
   },
@@ -4672,6 +4697,42 @@ const App = {
       && context.path === AppState.currentPath
       && context.mode === AppState.currentMode
       && context.style === AppState.cardStyle;
+  },
+
+  beginDirectoryLoad(context, contentArea) {
+    window.DirectoryLoadState.begin(AppState, context);
+    contentArea.classList.add('directory-load-active');
+    contentArea.setAttribute('aria-busy', 'true');
+    contentArea.innerHTML = `
+      <section class="directory-load-state" role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <strong>正在载入当前文件夹…</strong>
+        <span>正在读取目录内容与开发项目状态</span>
+      </section>`;
+    this.closeToolbarMenus();
+    this.updateDirectoryTypeFilterUI();
+    this.updateFileActionBar();
+    this.updateStatusBar();
+  },
+
+  finishDirectoryLoad(context, items) {
+    if (!window.DirectoryLoadState.finish(AppState, context)) return false;
+    const contentArea = document.getElementById('content-area');
+    contentArea?.classList.remove('directory-load-active');
+    contentArea?.removeAttribute('aria-busy');
+    this.updateDirectoryTypeFilterUI(items);
+    this.updateFileActionBar();
+    return true;
+  },
+
+  failDirectoryLoad(context) {
+    if (!window.DirectoryLoadState.fail(AppState, context)) return false;
+    const contentArea = document.getElementById('content-area');
+    contentArea?.classList.remove('directory-load-active');
+    contentArea?.removeAttribute('aria-busy');
+    this.updateDirectoryTypeFilterUI([]);
+    this.updateFileActionBar();
+    return true;
   },
 
   showDirectoryRenderProgress(container, context, total) {
@@ -4834,7 +4895,7 @@ const App = {
     }
 
     emptyState.style.display = 'none';
-    contentArea.innerHTML = '<div style="text-align:center;padding:40px;color:#86868b;"><div class="loading-spinner" style="margin:0 auto 10px;"></div>加载中...</div>';
+    this.beginDirectoryLoad(renderContext, contentArea);
 
     try {
       if (this.isFileBrowsingContext()) {
@@ -4842,6 +4903,7 @@ const App = {
       }
     } catch (e) {
       if (renderRequestId !== AppState.directoryRenderRequestId) return;
+      this.failDirectoryLoad(renderContext);
       console.error('renderContent error:', e);
       try {
         const inspection = await window.gitFinder.fs.inspectWorkspaceDirectories([AppState.currentPath]);
@@ -4870,7 +4932,7 @@ const App = {
     this.unavailableLocationController.clear();
 
     AppState.items = items;
-    this.updateDirectoryTypeFilterUI(items);
+    if (!this.finishDirectoryLoad(context, items)) return;
     items = window.ContentQuery.filterItems(items, AppState.contentQuery);
 
     // 名称筛选(目录树只按名称/路径过滤,README 在此模式不适用)
@@ -7355,7 +7417,7 @@ const App = {
   },
 
   async createDirectoryFromToolbar() {
-    if (!this.isDirectoryBrowsingContext() || !AppState.currentPath || AppState.fileOperationBusy) return;
+    if (!this.isDirectoryBrowsingContext() || !AppState.currentPath || AppState.fileOperationBusy || this.isDirectoryLoadBlocked()) return;
     const name = await this.openFileOperationDialog({
       title: '新建文件夹',
       value: '未命名文件夹',
@@ -7376,7 +7438,7 @@ const App = {
   },
 
   async createFileFromToolbar() {
-    if (!this.isDirectoryBrowsingContext() || !AppState.currentPath || AppState.fileOperationBusy) return;
+    if (!this.isDirectoryBrowsingContext() || !AppState.currentPath || AppState.fileOperationBusy || this.isDirectoryLoadBlocked()) return;
     const name = await this.openFileOperationDialog({
       title: '新建文件',
       value: '未命名.txt',
@@ -7426,7 +7488,7 @@ const App = {
 
   async renameSelectedItem() {
     const items = this.getSelectedFileItems();
-    if (!items.length || AppState.fileOperationBusy) return;
+    if (!items.length || AppState.fileOperationBusy || this.isDirectoryLoadBlocked()) return;
     if (items.length > 1) {
       this.batchRenameController.open(items);
       return;
@@ -7454,7 +7516,7 @@ const App = {
 
   async moveSelectedItems() {
     const paths = [...AppState.selectedPaths];
-    if (!paths.length || AppState.fileOperationBusy) return;
+    if (!paths.length || AppState.fileOperationBusy || this.isDirectoryLoadBlocked()) return;
     const selection = await window.gitFinder.fs.selectFolder();
     if (!selection?.path) return;
     await this.openTransferReview(paths, selection.path, 'move');
@@ -7462,7 +7524,7 @@ const App = {
 
   async trashSelectedItems() {
     const items = this.getSelectedFileItems();
-    if (!items.length || AppState.fileOperationBusy) return;
+    if (!items.length || AppState.fileOperationBusy || this.isDirectoryLoadBlocked()) return;
     const paths = items.map(item => item.path);
     const affectedRepositories = AppState.allRepos.filter(repo => paths.some(itemPath => (
       repo.path === itemPath || repo.path.startsWith(`${itemPath}/`) || repo.path.startsWith(`${itemPath}\\`)
@@ -7699,6 +7761,8 @@ const App = {
       this.setDirectoryViewStyle({ 1: 'card', 2: 'list', 3: 'column', 4: 'gallery' }[event.key]);
       return;
     }
+
+    if (this.isDirectoryLoadBlocked()) return;
 
     if (!event.metaKey && !event.ctrlKey && !event.altKey
         && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)
@@ -8591,7 +8655,12 @@ const App = {
       const selectedCount = AppState.selectedPaths.size;
       const visibleCount = AppState.visibleItems.length;
       const progress = AppState.directoryRenderProgress;
-      if (progress
+      const directoryLoadStatus = window.DirectoryLoadState.status(AppState);
+      if (directoryLoadStatus === 'loading') {
+        rightText = '正在载入当前文件夹…';
+      } else if (directoryLoadStatus === 'error') {
+        rightText = '当前文件夹无法载入';
+      } else if (progress
           && progress.requestId === AppState.directoryRenderRequestId
           && progress.path === AppState.currentPath) {
         const progressText = window.ProgressiveDirectoryRender.progressLabel(progress.rendered, progress.total);

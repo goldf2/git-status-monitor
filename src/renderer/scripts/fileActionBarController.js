@@ -13,12 +13,18 @@
     update() {
       const count = this.state.selectedPaths.size;
       const clipboardCount = this.state.fileClipboard?.paths?.length || 0;
-      const busy = this.state.fileOperationBusy;
+      const directoryStatus = this.state.directoryLoad?.status || 'idle';
+      const directoryBlocked = directoryStatus === 'loading' || directoryStatus === 'error';
+      const busy = this.state.fileOperationBusy || directoryBlocked;
       const summary = this._element('file-selection-summary');
       if (summary) {
-        summary.textContent = count
-          ? `已选择 ${count} 项`
-          : (clipboardCount ? `剪贴板中有 ${clipboardCount} 项` : '未选择项目');
+        summary.textContent = directoryStatus === 'loading'
+          ? '正在载入当前文件夹…'
+          : (directoryStatus === 'error'
+              ? '当前文件夹不可用'
+              : (count
+                  ? `已选择 ${count} 项`
+                  : (clipboardCount ? `剪贴板中有 ${clipboardCount} 项` : '未选择项目')));
       }
 
       const preview = this._element('file-preview');

@@ -14,7 +14,7 @@ if (process.platform === 'darwin') {
   }
 }
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, crashReporter } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -29,6 +29,19 @@ const { registerRelationshipBoardsIPC } = require('./src/main/ipc/relationshipBo
 const { registerConfigIPC } = require('./src/main/ipc/config');
 const { registerTerminalHandlers } = require('./src/main/ipc/terminal');
 const { registerTrustedHandler } = require('./src/main/ipc/security');
+
+// GitFinder 的文件管理与关系白板不依赖 GPU。Windows 虚拟机的虚拟显卡驱动
+// 可能在 Electron 创建首个窗口前终止 GPU 进程，因此 Windows 默认使用软件渲染。
+if (process.platform === 'win32') {
+  app.disableHardwareAcceleration();
+}
+
+crashReporter.start({
+  productName: 'GitFinder',
+  companyName: 'GitFinder',
+  uploadToServer: false,
+  compress: false
+});
 
 // 自动升级:开发模式下 require 会被跳过(electron-updater 在 asar 打包后才生效)
 const isDev = !app.isPackaged;
@@ -57,7 +70,9 @@ if (!hasSingleInstanceLock) {
 }
 
 function writeStartupError(source, error) {
-  const detail = error?.stack || error?.message || String(error);
+  const detail = error?.stack
+    || error?.message
+    || (typeof error === 'object' ? JSON.stringify(error) : String(error));
   try {
     fs.appendFileSync(startupLogPath, `[${new Date().toISOString()}] ${source}\n${detail}\n\n`);
   } catch (_) {}
@@ -65,6 +80,7 @@ function writeStartupError(source, error) {
 
 process.on('uncaughtException', error => writeStartupError('uncaughtException', error));
 process.on('unhandledRejection', error => writeStartupError('unhandledRejection', error));
+app.on('child-process-gone', (_event, details) => writeStartupError('child-process-gone', details));
 
 function isNewerVersion(candidate, current) {
   const normalize = (version) => String(version || '')
@@ -95,7 +111,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      enableWebGL: true,
+      webgl: process.platform !== 'win32',
       experimentalFeatures: false
     }
   };
@@ -109,6 +125,13 @@ function createWindow() {
 
   mainWindow.webContents.on('will-navigate', (event) => {
     event.preventDefault();
+  });
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    writeStartupError('render-process-gone', details);
+  });
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    writeStartupError('did-fail-load', { errorCode, errorDescription, validatedURL });
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
