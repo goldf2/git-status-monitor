@@ -142,6 +142,7 @@ const App = {
   fileOperationController: null,
   fileOperationDialogController: null,
   fileActionBarController: null,
+  directoryTerminalController: null,
   fileLabelController: null,
   fileSelectionDetailController: null,
   repositoryDetailController: null,
@@ -177,6 +178,7 @@ const App = {
     this.setupFileOperationController();
     this.setupFileOperationDialogController();
     this.setupFileActionBarController();
+    this.setupDirectoryTerminalController();
     this.setupFileLabelController();
     this.setupFileSelectionDetailController();
     this.setupRepositoryDetailController();
@@ -336,6 +338,14 @@ const App = {
       app: this,
       state: AppState,
       document
+    });
+  },
+
+  setupDirectoryTerminalController() {
+    this.directoryTerminalController = new window.DirectoryTerminalController.Controller({
+      app: this,
+      state: AppState,
+      bridge: window.gitFinder
     });
   },
 
@@ -667,6 +677,7 @@ const App = {
     document.getElementById('file-duplicate')?.addEventListener('click', () => this.duplicateSelectedItems());
     document.getElementById('file-rename')?.addEventListener('click', () => this.renameSelectedItem());
     document.getElementById('file-move')?.addEventListener('click', () => this.moveSelectedItems());
+    document.getElementById('file-open-terminal')?.addEventListener('click', () => this.openSelectedInTerminal());
     document.getElementById('file-open-editor')?.addEventListener('click', () => this.openSelectedInEditor());
     document.getElementById('file-labels')?.addEventListener('click', () => this.openSelectedFileLabels());
     document.getElementById('file-favorite')?.addEventListener('click', () => this.toggleSelectedFavorite());
@@ -732,6 +743,7 @@ const App = {
       if (action === 'open-settings') this.openSettingsPage();
       if (action === 'open-file-history') this.fileOperationHistoryController.open();
       if (action === 'show-file-info') this.openSelectedFileInfo();
+      if (action === 'open-terminal') this.openSelectedInTerminal();
       if (action === 'copy-pathnames') this.copySelectedPathnames();
       if (action.startsWith('view:')) this.switchView(action.slice(5));
       if (action.startsWith('edit:')) this.handleEditAction(action.slice(5), { source: 'menu' });
@@ -1743,6 +1755,10 @@ const App = {
   openSelectedInEditor() {
     const items = this.getSelectedFileItems();
     if (items.length === 1) this.openPathInEditor(items[0].path);
+  },
+
+  openSelectedInTerminal() {
+    return this.directoryTerminalController.open();
   },
 
   setupToolbarMenus() {
@@ -7178,6 +7194,7 @@ const App = {
       menu.querySelector('[data-context-action="get-info"]').disabled = items.length !== 1;
       menu.querySelector('[data-context-action="duplicate"]').disabled = items.length === 0 || !this.isDirectoryBrowsingContext();
       menu.querySelector('[data-context-action="rename"]').disabled = items.length === 0;
+      menu.querySelector('[data-context-action="open-terminal"]').disabled = items.length !== 1;
       menu.querySelector('[data-context-action="open-editor"]').disabled = items.length !== 1;
       menu.querySelector('[data-context-action="labels"]').disabled = items.length === 0;
       menu.querySelector('[data-context-action="favorite"]').disabled = !singleDirectory;
@@ -7202,6 +7219,7 @@ const App = {
       if (action === 'duplicate') this.duplicateSelectedItems();
       if (action === 'rename') this.renameSelectedItem();
       if (action === 'move') this.moveSelectedItems();
+      if (action === 'open-terminal') this.openSelectedInTerminal();
       if (action === 'open-editor') this.openSelectedInEditor();
       if (action === 'labels') this.openSelectedFileLabels();
       if (action === 'favorite') this.toggleSelectedFavorite();
@@ -7622,6 +7640,7 @@ const App = {
     const externalImportVisible = document.getElementById('external-import-modal')?.style.display !== 'none';
     const transferReviewVisible = document.getElementById('transfer-review-modal')?.style.display !== 'none';
     const target = event.target;
+    if (target?.closest?.('[role="menu"]')) return;
     const primaryKey = event.metaKey || (window.gitFinder.platform !== 'darwin' && event.ctrlKey);
     const typing = target instanceof HTMLInputElement
       || target instanceof HTMLTextAreaElement

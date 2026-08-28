@@ -60,6 +60,13 @@ test('Windows Enter 打开选中项，仓库卡片不再平铺 Git 写操作', (
   assert.doesNotMatch(appSource, /class="repo-actions"/);
 });
 
+test('菜单获得焦点时由菜单消费键盘事件，不触发目录重命名或快速预览', () => {
+  assert.match(
+    appSource,
+    /const target = event\.target;\s*if \(target\?\.closest\?\.\('\[role="menu"\]'\)\) return;/
+  );
+});
+
 test('文件操作对话框消费 Return 和 Escape，避免同一次按键再次触发目录快捷键', () => {
   assert.match(
     fileOperationDialogSource,

@@ -1,4 +1,5 @@
 const { exec } = require('node:child_process');
+const path = require('node:path');
 const { BrowserWindow, dialog } = require('electron');
 const { registerTrustedHandler } = require('./security');
 const developerToolService = require('../services/developerToolService');
@@ -13,6 +14,12 @@ function resolveWorkingDirectory(cwd) {
 function resolveManagedTarget(targetPath) {
   const result = fileService.resolveWorkspacePath(targetPath);
   return result.ok && ['directory', 'file'].includes(result.type) ? result.path : null;
+}
+
+function resolveTerminalWorkingDirectory(targetPath, managedFileService = fileService) {
+  const result = managedFileService.resolveWorkspacePath(targetPath);
+  if (!result.ok || !['directory', 'file'].includes(result.type)) return null;
+  return result.type === 'directory' ? result.path : path.dirname(result.path);
 }
 
 async function confirmTerminalCommand(event, command, workingDirectory) {
@@ -94,6 +101,16 @@ function registerTerminalHandlers() {
     }
   });
 
+  ipcMain.handle('terminal:openForPath', async (event, targetPath, preferred) => {
+    const workingDirectory = resolveTerminalWorkingDirectory(targetPath);
+    if (!workingDirectory) return { opened: false, reason: '路径不在受管开发目录中或不可用' };
+    try {
+      return developerToolService.openTerminal(workingDirectory, preferred);
+    } catch (e) {
+      return { opened: false, reason: e.message || String(e) };
+    }
+  });
+
   ipcMain.handle('terminal:openInEditor', async (event, targetPath, preferred) => {
     const managedTarget = resolveManagedTarget(targetPath);
     if (!managedTarget) return { opened: false, reason: '路径不在受管开发目录中或不可用' };
@@ -105,4 +122,4 @@ function registerTerminalHandlers() {
   });
 }
 
-module.exports = { registerTerminalHandlers };
+module.exports = { registerTerminalHandlers, resolveTerminalWorkingDirectory };

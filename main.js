@@ -191,6 +191,7 @@ function setupApplicationMenu() {
           registerAccelerator: false,
           click: () => sendShortcut('show-file-info')
         },
+        { label: '在终端中打开', click: () => sendShortcut('open-terminal') },
         { type: 'separator' },
         { role: 'close', label: '关闭窗口', registerAccelerator: false },
         ...(process.platform !== 'darwin' ? [{ type: 'separator' }, settingsItem()] : [])

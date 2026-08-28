@@ -155,6 +155,7 @@ contextBridge.exposeInMainWorld('gitFinder', {
     getCapabilities: () => ipcRenderer.invoke('terminal:getCapabilities'),
     selectExecutable: (kind) => ipcRenderer.invoke('terminal:selectExecutable', kind),
     openExternal: (cwd, preferred) => ipcRenderer.invoke('terminal:openExternal', cwd, preferred),
+    openForPath: (targetPath, preferred) => ipcRenderer.invoke('terminal:openForPath', targetPath, preferred),
     openInEditor: (targetPath, preferred) => ipcRenderer.invoke('terminal:openInEditor', targetPath, preferred)
   },
 
