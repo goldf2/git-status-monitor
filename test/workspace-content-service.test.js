@@ -129,6 +129,26 @@ test('JSON 预览格式化有效内容，二进制文件不作为文本返回', 
   assert.match(binaryPreview.reason, /二进制/);
 });
 
+test('ZIP 预览走只读归档分支，损坏文件不会退回普通二进制文本', async (t) => {
+  const { firstRoot, service } = createFixture(t);
+  const emptyArchivePath = path.join(firstRoot, 'empty.zip');
+  const corruptArchivePath = path.join(firstRoot, 'corrupt.zip');
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  fs.writeFileSync(emptyArchivePath, eocd);
+  fs.writeFileSync(corruptArchivePath, Buffer.from('broken archive'));
+
+  const emptyPreview = await service.getPreview(emptyArchivePath);
+  const corruptPreview = await service.getPreview(corruptArchivePath);
+  assert.equal(emptyPreview.kind, 'archive');
+  assert.equal(emptyPreview.format, 'zip');
+  assert.equal(emptyPreview.totalEntries, 0);
+  assert.equal(emptyPreview.readOnly, true);
+  assert.equal(corruptPreview.kind, 'unsupported');
+  assert.equal(corruptPreview.format, 'zip');
+  assert.match(corruptPreview.reason, /ZIP/);
+});
+
 test('开发配置与日志返回明确语言，二进制 plist 只暴露显式只读转换入口', async (t) => {
   const conversionCalls = [];
   const convertedXml = '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleName</key><string>Demo</string></dict></plist>\n';

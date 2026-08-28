@@ -238,6 +238,37 @@ test('目录操作复用当前项目身份，外部名称和不支持原因保�
   assert.match(document.elements.get('quick-look-body').innerHTML, /&lt;img src=x&gt;/);
 });
 
+test('ZIP Quick Look 展示受限归档摘要并转义内部路径', () => {
+  const { controller, document } = createController();
+  controller.render({
+    kind: 'archive',
+    format: 'zip',
+    name: 'source.zip',
+    path: '/managed/source.zip',
+    size: 120,
+    modifiedTime: '2026-08-28T00:00:00.000Z',
+    totalEntries: 3,
+    fileCount: 2,
+    directoryCount: 1,
+    encryptedCount: 1,
+    totalCompressedSize: 20,
+    totalUncompressedSize: 40,
+    truncated: false,
+    entries: [
+      { name: 'src/', isDirectory: true, compressedSize: 0, uncompressedSize: 0, method: '存储', encrypted: false },
+      { name: '<script>.js', isDirectory: false, compressedSize: 20, uncompressedSize: 40, method: 'Deflate', encrypted: true }
+    ]
+  });
+
+  const html = document.elements.get('quick-look-body').innerHTML;
+  assert.match(html, /3 个条目/);
+  assert.match(html, /1 个加密条目/);
+  assert.match(html, /src\//);
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /&lt;script&gt;\.js/);
+  assert.match(html, /只读列出目录/);
+});
+
 test('二进制 plist 不会隐式转换，并提供说明清楚的显式只读操作', async () => {
   let conversions = 0;
   const { controller, document } = createController({

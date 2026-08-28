@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { TextDecoder } = require('util');
 const configService = require('./configService');
+const { readZipPreview, describeZipPreviewError } = require('./zipPreview');
 
 const IMAGE_TYPES = new Map([
   ['.png', 'image/png'],
@@ -133,6 +134,9 @@ class WorkspaceContentService {
     this.configService = options.configService || configService;
     this.maxTextBytes = options.maxTextBytes || 1024 * 1024;
     this.maxImageBytes = options.maxImageBytes || 12 * 1024 * 1024;
+    this.maxZipCentralDirectoryBytes = options.maxZipCentralDirectoryBytes || 8 * 1024 * 1024;
+    this.maxZipEntries = options.maxZipEntries || 10000;
+    this.maxZipPreviewEntries = options.maxZipPreviewEntries || 500;
     this.platform = options.platform || process.platform;
     this.maxBinaryPlistBytes = Math.max(8, Number(options.maxBinaryPlistBytes) || DEFAULT_MAX_BINARY_PLIST_BYTES);
     this.maxBinaryPlistOutputBytes = Math.max(32, Number(options.maxBinaryPlistOutputBytes) || DEFAULT_MAX_BINARY_PLIST_OUTPUT_BYTES);
@@ -275,6 +279,24 @@ class WorkspaceContentService {
         mimeType: imageMimeType,
         dataUrl: `data:${imageMimeType};base64,${buffer.toString('base64')}`
       };
+    }
+
+    if (extension === '.zip') {
+      try {
+        const archive = await readZipPreview(realPath, stat, {
+          maxCentralDirectoryBytes: this.maxZipCentralDirectoryBytes,
+          maxEntries: this.maxZipEntries,
+          maxPreviewEntries: this.maxZipPreviewEntries
+        });
+        return { ...base, kind: 'archive', format: 'zip', ...archive };
+      } catch (error) {
+        return {
+          ...base,
+          kind: 'unsupported',
+          format: 'zip',
+          reason: describeZipPreviewError(error)
+        };
+      }
     }
 
     return this._previewTextFile(realPath, resolved, stat, base, options);

@@ -147,6 +147,33 @@
           </div>`;
         return;
       }
+      if (preview.kind === 'archive' && preview.format === 'zip') {
+        if (elements.icon) elements.icon.textContent = '🗜️';
+        const entryRows = (Array.isArray(preview.entries) ? preview.entries : []).map(entry => `
+          <div class="quick-look-archive-entry">
+            <span class="quick-look-archive-entry-name" title="${this.escapeHtml(entry.name)}">${entry.isDirectory ? '📁' : '📄'} ${this.escapeHtml(entry.name)}</span>
+            <span>${entry.encrypted ? '<b class="quick-look-archive-encrypted">加密</b>' : this.escapeHtml(entry.method || '')}</span>
+            <span>${entry.isDirectory ? '—' : this.formatFileSize(entry.uncompressedSize)}</span>
+          </div>`).join('');
+        const encryptedNotice = Number(preview.encryptedCount || 0) > 0
+          ? `<div class="quick-look-archive-notice">🔒 ${Number(preview.encryptedCount)} 个加密条目；这里只读列出目录，不尝试解密或读取正文。</div>`
+          : '<div class="quick-look-archive-notice">这里只读列出目录，不解压、不执行，也不读取条目正文。</div>';
+        elements.body.innerHTML = `
+          <div class="quick-look-archive">
+            <div class="quick-look-archive-summary">
+              <strong>${Number(preview.totalEntries || 0)} 个条目</strong>
+              <span>${Number(preview.directoryCount || 0)} 个文件夹 · ${Number(preview.fileCount || 0)} 个文件</span>
+              <span>${this.formatFileSize(preview.totalCompressedSize)} 压缩后 · ${this.formatFileSize(preview.totalUncompressedSize)} 原始大小</span>
+            </div>
+            ${encryptedNotice}
+            <div class="quick-look-archive-list" role="table" aria-label="ZIP 内容">
+              <div class="quick-look-archive-entry quick-look-archive-heading" role="row"><span>路径</span><span>方式</span><span>大小</span></div>
+              ${entryRows || '<div class="quick-look-empty">此 ZIP 没有条目</div>'}
+            </div>
+            ${preview.truncated ? `<div class="quick-look-boundary-note">仅显示前 ${Number(preview.entries?.length || 0)} 个条目；总数为 ${Number(preview.totalEntries || 0)}。</div>` : ''}
+          </div>`;
+        return;
+      }
       if (elements.icon) elements.icon.textContent = '🚫';
       const canConvertBinaryPlist = preview.format === 'binary-plist' && preview.canConvertBinaryPlist === true;
       elements.body.innerHTML = `
